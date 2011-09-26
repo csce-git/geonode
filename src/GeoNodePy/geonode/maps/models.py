@@ -634,6 +634,65 @@ class LayerManager(models.Manager):
         # Doing a logout since we know we don't need this object anymore.
         gn.logout()
 
+SERVICE_TYPES = (
+	('OWS', 'Paired WMS/WFS/WCS'),
+	('WMS', 'Web Map Service'),
+	('WFS', 'Web Feature Service'),
+	('WCS', 'Web Coverage Service'),
+	('WPS', 'Web Processing Service'),
+	('CSW', 'Catalogue Service'),
+	('WMTS', 'Web Map Tile Service'),
+	('TMS', 'Tile Map Service'),
+	('OSG', 'OpenSearch Geo Service'),
+)
+
+SERVICE_METHODS = (
+    ('L', 'Local'),
+    ('C', 'Cascaded'),
+    ('I', 'Indexed'),
+    ('X', 'Live'),
+)
+
+class Service(models.Model, PermissionLevelMixin):
+    """
+    Service Class to represent remote Geo Web Services
+    """
+    
+    type = models.CharField(max_length=4, choices=SERVICE_TYPES)
+    method = models.CharField(max_length=1, choices=SERVICE_METHODS)
+    base_url = models.URLField(verify_exists=False) # with service, version and request etc stripped off
+    version = models.CharField(max_length=10, null=True, blank=True)
+    name = models.CharField(max_length=255, null=True, blank=True)
+    title = models.CharField(max_length=255, null=True, blank=True)
+    description = models.CharField(max_length=255, null=True, blank=True)
+    abstract = models.TextField(null=True, blank=True)
+    keywords = models.TextField(null=True, blank=True)
+    online_resource = models.URLField(verify_exists = False, null=True, blank=True)
+    fees = models.CharField(max_length=1000, null=True, blank=True)
+    access_contraints = models.CharField(max_length=255, null=True, blank=True)
+    connection_params = models.TextField(null=True, blank=True)
+    username = models.CharField(max_length=50, null=True, blank=True)
+    password = models.CharField(max_length=50, null=True, blank=True)
+    api_key = models.CharField(max_length=255, null=True, blank=True)
+    workspace_ref = models.URLField(verify_exists = False, null=True, blank=True)
+    store_ref = models.URLField(verify_exists = False, null=True, blank=True)
+    resources_ref = models.URLField(verify_exists = False, null = True, blank = True)
+    contacts = models.ManyToManyField(Contact, through='ServiceContactRole')
+    owner = models.ForeignKey(User, blank=True, null=True)
+    created = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
+    first_noanswer = models.DateTimeField(null=True, blank=True)
+    noanswer_retries = models.PositiveIntegerField(null=True, blank=True)
+	
+    # Supported Capabilities
+    
+    def __unicode__(self):
+        return self.name
+
+    def layers(self):
+        """Return a list of all the child layers (resources) for this Service"""
+        pass 
+
 class Layer(models.Model, PermissionLevelMixin):
     """
     Layer Object loosely based on ISO 19115:2003
@@ -643,6 +702,7 @@ class Layer(models.Model, PermissionLevelMixin):
 
     # internal fields
     objects = LayerManager()
+    service = models.ForeignKey(Service, null=True, blank=True)
     workspace = models.CharField(max_length=128)
     store = models.CharField(max_length=128)
     storeType = models.CharField(max_length=128)
@@ -1442,6 +1502,11 @@ class MapLayer(models.Model):
     The map containing this layer
     """
 
+    layer = models.ForeignKey(Layer, null=True, blank=True)
+    """
+    The Layer object (can be remote layer)
+    """
+
     stack_order = models.IntegerField(_('stack order'))
     """
     The z-index of this layer in the map; layers with a higher stack_order will
@@ -1596,6 +1661,14 @@ class Role(models.Model):
     def __unicode__(self):
         return self.get_value_display()
 
+
+class ServiceContactRole(models.Model):
+    """
+    ServiceContactRole is an intermediate model to bind Contacts and Services and apply roles.
+    """
+    contact = models.ForeignKey(Contact)
+    service = models.ForeignKey(Service)
+    role = models.ForeignKey(Role)
 
 class ContactRole(models.Model):
     """
