@@ -668,9 +668,9 @@ class Service(models.Model, PermissionLevelMixin):
     
     type = models.CharField(max_length=4, choices=SERVICE_TYPES)
     method = models.CharField(max_length=1, choices=SERVICE_METHODS)
-    base_url = models.URLField(verify_exists=False) # with service, version and request etc stripped off
+    base_url = models.URLField(verify_exists=False, unique=True) # with service, version and request etc stripped off 
     version = models.CharField(max_length=10, null=True, blank=True)
-    name = models.CharField(max_length=255, null=True, blank=True)
+    name = models.CharField(max_length=255, unique=True) #Should force to slug?
     title = models.CharField(max_length=255, null=True, blank=True)
     description = models.CharField(max_length=255, null=True, blank=True)
     abstract = models.TextField(null=True, blank=True)
