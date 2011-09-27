@@ -983,7 +983,7 @@ def register_external_layer(request):
                 lyr = cat.get_resource(layer)
                 if(lyr == None):
                     resource = cat.create_wmslayer(geonode_ws, store, layer) 
-                    #Layer.objects.save_or_update_layer_from_geoserver(geonode_ws, store, resource)
+                    Layer.objects.save_or_update_layer_from_geoserver(geonode_ws, store, resource)
                     count += 1
             message = "%d Layers Registered" % count
             return_dict = {'status': 'ok', 'msg': message }
