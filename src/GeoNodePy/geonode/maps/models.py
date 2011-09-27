@@ -601,7 +601,7 @@ class LayerManager(models.Manager):
             try:
                 store = resource.store
                 workspace = store.workspace
-                save_or_update_layer_from_geoserver(workspace, store, resource)
+                self.save_or_update_layer_from_geoserver(workspace, store, resource)
             finally:
                 pass
         
