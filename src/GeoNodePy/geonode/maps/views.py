@@ -3,7 +3,8 @@ from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactR
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
 from geonode import geonetwork
 import geoserver
-from geoserver.resource import FeatureType, Coverage
+from geoserver.catalog import Catalog
+from geoserver.resource import FeatureType, Coverage, WmsLayer
 import base64
 from django import forms
 from django.contrib.auth import authenticate, get_backends as get_auth_backends
@@ -23,6 +24,7 @@ import math
 import httplib2 
 from owslib.csw import CswRecord, namespaces
 from owslib.util import nspath
+from owslib.wms import WebMapService
 import re
 from urllib import urlencode
 from urlparse import urlparse
@@ -32,7 +34,8 @@ from django.views.decorators.csrf import csrf_exempt, csrf_response_exempt
 from django.forms.models import inlineformset_factory
 from django.db.models import Q
 import logging
-import sys
+import sys, traceback
+
 
 logger = logging.getLogger("geonode.maps.views")
 
@@ -857,7 +860,7 @@ GENERIC_REGISTER_ERROR = _("There was an error while attempting to register the 
 Please try again, or contact and administrator if the problem continues.")
 
 @login_required
-def register_service(request):
+def register_external_service(request):
     if request.method == "GET":
         return render_to_response('maps/register_service.html',
                                   RequestContext(request, {}))
@@ -865,30 +868,140 @@ def register_service(request):
     elif request.method == 'POST':
         # Register a new Service
         try:
-            type = request.POST.get('type')
-            method = request.POST.get('method')
+            method = request.POST.get('method').upper()
+            type = request.POST.get('type').upper()
             url = request.POST.get('url')
-            print url, type, method
-            return HttpResponse(
-                'ok',
-                mimetype="text/plain",
-                status=200
-            )
+            name = request.POST.get('name')
+
+            # First Check if this service already exists based on the URL
+            base_url = url.split('?')[0]
+            try:
+                service = Service.objects.get(base_url=base_url)
+            except Service.DoesNotExist:
+                service = None
+            if service is not None:
+                return HttpResponse(
+                    'Service already Exists (use PUT)',
+                    mimetype="text/plain",
+                    status=400
+                )
+            # Probably need to enforce the name being unique too
+            
+            if method == 'L':
+                    return HttpResponse(
+                        'Not Implemented (Yet)',
+                        mimetype="text/plain",
+                        status=501
+                    )
+            elif method == 'C':
+                if type == 'WMS':
+                    # Register the Service with GeoServer to be cascaded
+                    cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", _user , _password)
+                    geonode_ws = cat.get_workspace("geonode") # Can we always assume that it is geonode?
+                    ws = cat.create_wmsstore(name,geonode_ws)
+                    ws.capabilitiesURL = base_url
+                    ws.type = "WMS"
+                    cat.save(ws)
+                    available_resources = ws.get_resources(available=True)
+                    
+                    # Save the Service record
+                    service = Service(type = type,
+                                        method=method,
+                                        base_url = base_url,
+                                        name = name)
+                    service.save()
+                    message = "Service %s registered" % service.name
+                    return_dict = {'status': 'ok', 'msg': message, 'id': service.pk,
+                                    'available_layers': available_resources}
+                    return HttpResponse(json.dumps(return_dict), 
+                                        mimetype='application/json',
+                                        status=200)        
+                elif type == 'WFS' or type == 'WCS':
+                    return HttpResponse(
+                        'Not Implemented (Yet)',
+                        mimetype="text/plain",
+                        status=501
+                    )
+                else:
+                    return HttpResponse(
+                        'Invalid Method / Type combo: Only Cascaded WMS, WFS and WCS supported',
+                        mimetype="text/plain",
+                        status=400
+                    )
+            elif method == 'I':
+                pass
+            elif method == 'X':
+                return HttpResponse(
+                    'Not Implemented (Yet)',
+                    mimetype="text/plain",
+                    status=501
+                )
+            else:
+                return HttpResponse(
+                    'Invalid method',
+                    mimetype="text/plain",
+                    status=400
+                )
         except:
             print "Unexpected error:", sys.exc_info()
-            return HttpResponse('error')
+            return HttpResponse('error', status=500)
 
     elif request.method == 'PUT':
         # Update a previously registered Service
-        return HttpResponse('not implemented yet')
-
+        return HttpResponse('not implemented yet', status=501)
     elif request.method == 'DELETE':
         # Delete a previously registered Service
-        return HttpResponse('not implemented yet')
-    
+        return HttpResponse('not implemented yet', status=501)
     else:
-        # raise 400 
-        return HttpResponse('error', status = 400)
+        return HttpResponse('Invalid Request', status = 400)
+
+@login_required
+def register_external_layer(request):
+    if request.method == 'GET':
+        return HttpResponse('not implemented yet', status=501)
+    elif request.method == 'POST':
+        try:
+            service_id = request.POST.get("service_id")
+            layer_list = request.POST.get("layer_list")
+            print layer_list
+            layers = layer_list.split(',') 
+            try:
+                service = Service.objects.get(pk = int(service_id))
+            except Service.DoesNotExist:
+                return HttpResponse(
+                    'No Service mathing id exists',
+                    mimetype="text/plain",
+                    status=404
+                )
+            # Assume this is a WMS for now
+            cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", _user , _password)
+            geonode_ws = cat.get_workspace("geonode") # Can we always assume that it is geonode?
+            store = cat.get_store(service.name,geonode_ws)
+            count = 0
+            for layer in layers: 
+                print layer
+                lyr = cat.get_resource(layer)
+                if(lyr == None):
+                    resource = cat.create_wmslayer(geonode_ws, store, layer) 
+                    Layer.objects.save_or_update_layer_from_geoserver(geonode_ws, store, resource)
+                    count += 1
+            message = "%d Layers Registered" % count
+            return_dict = {'status': 'ok', 'msg': message }
+            return HttpResponse(json.dumps(return_dict),
+                                mimetype='application/json',
+                                status=200)
+        except:
+            print '-'*60
+            traceback.print_exc(file=sys.stdout)
+            print '-'*60 
+            return HttpResponse('Unexpected Error', status=501)
+    elif request.method == 'PUT':
+        return HttpResponse('not implemented yet', status=501)
+    elif request.method == 'DELETE':
+        return HttpResponse('not implemented yet', status=501)
+    else:
+        return HttpResponse('Invalid Request', status = 400)
+        
 
 GENERIC_UPLOAD_ERROR = _("There was an error while attempting to upload your data. \
 Please try again, or contact and administrator if the problem continues.")
