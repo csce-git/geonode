@@ -929,7 +929,7 @@ def register_external_service(request):
                         status=400
                     )
             elif method == 'I':
-                pass
+                return HttpResponse('not implemented yet', status=501)
             elif method == 'X':
                 return HttpResponse(
                     'Not Implemented (Yet)',
