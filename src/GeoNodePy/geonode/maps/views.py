@@ -1,5 +1,5 @@
 from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
-from geonode.maps.models import Map, Layer, MapLayer, Contact, ContactRole,Role, get_csw
+from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole,Role, get_csw
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
 from geonode import geonetwork
 import geoserver
@@ -32,6 +32,7 @@ from django.views.decorators.csrf import csrf_exempt, csrf_response_exempt
 from django.forms.models import inlineformset_factory
 from django.db.models import Q
 import logging
+import sys
 
 logger = logging.getLogger("geonode.maps.views")
 
@@ -852,6 +853,42 @@ def layerController(request, layername):
             "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL
 	    }))
 
+GENERIC_REGISTER_ERROR = _("There was an error while attempting to register the specified service. \
+Please try again, or contact and administrator if the problem continues.")
+
+@login_required
+def register_service(request):
+    if request.method == "GET":
+        return render_to_response('maps/register_service.html',
+                                  RequestContext(request, {}))
+
+    elif request.method == 'POST':
+        # Register a new Service
+        try:
+            type = request.POST.get('type')
+            method = request.POST.get('method')
+            url = request.POST.get('url')
+            print url, type, method
+            return HttpResponse(
+                'ok',
+                mimetype="text/plain",
+                status=200
+            )
+        except:
+            print "Unexpected error:", sys.exc_info()
+            return HttpResponse('error')
+
+    elif request.method == 'PUT':
+        # Update a previously registered Service
+        return HttpResponse('not implemented yet')
+
+    elif request.method == 'DELETE':
+        # Delete a previously registered Service
+        return HttpResponse('not implemented yet')
+    
+    else:
+        # raise 400 
+        return HttpResponse('error', status = 400)
 
 GENERIC_UPLOAD_ERROR = _("There was an error while attempting to upload your data. \
 Please try again, or contact and administrator if the problem continues.")
