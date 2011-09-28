@@ -912,8 +912,8 @@ def register_external_service(request):
                     return HttpResponse('Not Implemented (Yet)', status=501)
                 else:
                     return HttpResponse(
-                        'Invalid Method / Type combo:\ 
-                         Only Cascaded WMS, WFS and WCS supported',
+                        'Invalid Method / Type combo: ' + 
+                        'Only Cascaded WMS, WFS and WCS supported',
                         mimetype="text/plain",
                         status=400
                     )
