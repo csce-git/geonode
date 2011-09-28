@@ -611,8 +611,17 @@ class LayerManager(models.Manager):
     def save_layer_from_geoserver(self, workspace, store, resource):
         cat = self.gs_catalog
         gn = self.gn_catalog
+        if store.resource_type == "wmsStore":
+            service, created = Service.objects.get_or_create(type = 'WMS', method = 'C',
+                                                base_url = store.capabilitiesURL.split('?')[0],
+                                                name = store.name)      
+        else:
+            service, created = Service.objects.get_or_create(type = 'OWS', method='L',
+                                                base_url = settings.GEOSERVER_BASE_URL + "ows",
+                                                name = settings.SITENAME)
         try:
             layer, created = self.get_or_create(name=resource.name, defaults = {
+                "service": service,
                 "workspace": workspace.name,
                 "store": store.name,
                 "storeType": store.resource_type,
