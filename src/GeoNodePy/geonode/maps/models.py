@@ -601,14 +601,14 @@ class LayerManager(models.Manager):
             try:
                 store = resource.store
                 workspace = store.workspace
-                self.save_or_update_layer_from_geoserver(workspace, store, resource)
+                self.save_layer_from_geoserver(workspace, store, resource)
             finally:
                 pass
         
         # Doing a logout since we know we don't need this object anymore.
         gn.logout()
 
-    def save_or_update_layer_from_geoserver(self, workspace, store, resource):
+    def save_layer_from_geoserver(self, workspace, store, resource):
         cat = self.gs_catalog
         gn = self.gn_catalog
         try:
