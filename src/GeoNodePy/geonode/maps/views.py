@@ -856,9 +856,6 @@ def layerController(request, layername):
             "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL
 	    }))
 
-GENERIC_REGISTER_ERROR = _("There was an error while attempting to register the specified service. \
-Please try again, or contact and administrator if the problem continues.")
-
 @login_required
 def register_external_service(request):
     if request.method == "GET":
@@ -880,24 +877,18 @@ def register_external_service(request):
             except Service.DoesNotExist:
                 service = None
             if service is not None:
-                return HttpResponse(
-                    'Service already Exists (use PUT)',
-                    mimetype="text/plain",
-                    status=400
-                )
+                return HttpResponse('Service already Exists',status=400)
             # Probably need to enforce the name being unique too
             
             if method == 'L':
-                    return HttpResponse(
-                        'Not Implemented (Yet)',
-                        mimetype="text/plain",
-                        status=501
-                    )
+                    return HttpResponse('Not Implemented (Yet)', status=501)
             elif method == 'C':
                 if type == 'WMS':
                     # Register the Service with GeoServer to be cascaded
-                    cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", _user , _password)
-                    geonode_ws = cat.get_workspace("geonode") # Can we always assume that it is geonode?
+                    cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
+                                    _user , _password)
+                    # Can we always assume that it is geonode?
+                    geonode_ws = cat.get_workspace("geonode")
                     ws = cat.create_wmsstore(name,geonode_ws)
                     ws.capabilitiesURL = base_url
                     ws.type = "WMS"
@@ -911,54 +902,44 @@ def register_external_service(request):
                                         name = name)
                     service.save()
                     message = "Service %s registered" % service.name
-                    return_dict = {'status': 'ok', 'msg': message, 'id': service.pk,
+                    return_dict = {'status': 'ok', 'msg': message, 
+                                    'id': service.pk,
                                     'available_layers': available_resources}
                     return HttpResponse(json.dumps(return_dict), 
                                         mimetype='application/json',
                                         status=200)        
                 elif type == 'WFS' or type == 'WCS':
-                    return HttpResponse(
-                        'Not Implemented (Yet)',
-                        mimetype="text/plain",
-                        status=501
-                    )
+                    return HttpResponse('Not Implemented (Yet)', status=501)
                 else:
                     return HttpResponse(
-                        'Invalid Method / Type combo: Only Cascaded WMS, WFS and WCS supported',
+                        'Invalid Method / Type combo:\ 
+                         Only Cascaded WMS, WFS and WCS supported',
                         mimetype="text/plain",
                         status=400
                     )
             elif method == 'I':
-                return HttpResponse('not implemented yet', status=501)
+                return HttpResponse('Not Implemented (Yet)', status=501)
             elif method == 'X':
-                return HttpResponse(
-                    'Not Implemented (Yet)',
-                    mimetype="text/plain",
-                    status=501
-                )
+                return HttpResponse('Not Implemented (Yet)', status=501)
             else:
-                return HttpResponse(
-                    'Invalid method',
-                    mimetype="text/plain",
-                    status=400
-                )
+                return HttpResponse('Invalid method', status=400)
         except:
             print "Unexpected error:", sys.exc_info()
-            return HttpResponse('error', status=500)
+            return HttpResponse('Unexpected Error', status=500)
 
     elif request.method == 'PUT':
         # Update a previously registered Service
-        return HttpResponse('not implemented yet', status=501)
+        return HttpResponse('Not Implemented (Yet)', status=501)
     elif request.method == 'DELETE':
         # Delete a previously registered Service
-        return HttpResponse('not implemented yet', status=501)
+        return HttpResponse('Not Implemented (Yet)', status=501)
     else:
         return HttpResponse('Invalid Request', status = 400)
 
 @login_required
 def register_external_layer(request):
     if request.method == 'GET':
-        return HttpResponse('not implemented yet', status=501)
+        return HttpResponse('Not Implemented (Yet)', status=501)
     elif request.method == 'POST':
         try:
             service_id = request.POST.get("service_id")
@@ -974,8 +955,10 @@ def register_external_layer(request):
                     status=404
                 )
             # Assume this is a WMS for now
-            cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", _user , _password)
-            geonode_ws = cat.get_workspace("geonode") # Can we always assume that it is geonode?
+            cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
+                            _user , _password)
+            # Can we always assume that it is geonode? 
+            geonode_ws = cat.get_workspace("geonode") 
             store = cat.get_store(service.name,geonode_ws)
             count = 0
             for layer in layers: 
@@ -983,7 +966,8 @@ def register_external_layer(request):
                 lyr = cat.get_resource(layer)
                 if(lyr == None):
                     resource = cat.create_wmslayer(geonode_ws, store, layer) 
-                    Layer.objects.save_or_update_layer_from_geoserver(geonode_ws, store, resource)
+                    Layer.objects.save_layer_from_geoserver(geonode_ws, 
+                                                            store, resource)
                     count += 1
             message = "%d Layers Registered" % count
             return_dict = {'status': 'ok', 'msg': message }
@@ -996,9 +980,9 @@ def register_external_layer(request):
             print '-'*60 
             return HttpResponse('Unexpected Error', status=501)
     elif request.method == 'PUT':
-        return HttpResponse('not implemented yet', status=501)
+        return HttpResponse('Not Implemented (Yet)', status=501)
     elif request.method == 'DELETE':
-        return HttpResponse('not implemented yet', status=501)
+        return HttpResponse('Not Implemented (Yet)', status=501)
     else:
         return HttpResponse('Invalid Request', status = 400)
         
