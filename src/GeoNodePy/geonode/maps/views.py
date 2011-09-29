@@ -899,7 +899,8 @@ def register_external_service(request):
                     service = Service(type = type,
                                         method=method,
                                         base_url = base_url,
-                                        name = name)
+                                        name = name,
+                                        owner = request.user)
                     service.save()
                     message = "Service %s registered" % service.name
                     return_dict = {'status': 'ok', 'msg': message, 
@@ -918,7 +919,42 @@ def register_external_service(request):
                         status=400
                     )
             elif method == 'I':
-                return HttpResponse('Not Implemented (Yet)', status=501)
+                if type == 'WMS':
+                    wms = WebMapService(base_url)
+                    service = Service(type = type,
+                                        method=method,
+                                        base_url = base_url,
+                                        name = name,
+                                        version = wms.identification.version,
+                                        title = wms.identification.title,
+                                        abstract = wms.identification.abstract,
+                                        keywords = ','.join(wms.identification.keywords),
+                                        online_resource = wms.provider.url,
+                                        owner=request.user)
+                    service.save()
+                    available_resources = []
+                    for layer in list(wms.contents):
+                        available_resources.append(wms[layer].name)
+                    message = "Service %s registered" % service.name
+                    return_dict = {'status': 'ok', 'msg': message,
+                                    'id': service.pk,
+                                    'available_layers': available_resources}
+                    return HttpResponse(json.dumps(return_dict),
+                                        mimetype='application/json',
+                                        status=200)
+                elif type == 'WFS':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+                elif type == 'WCS':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+                elif type == 'CSW':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+                else:
+                    return HttpResponse(
+                        'Invalid Method / Type combo: ' + 
+                        'Only Indexed WMS, WFS, WCS and CSW supported',
+                        mimetype="text/plain",
+                        status=400
+                    )
             elif method == 'X':
                 return HttpResponse('Not Implemented (Yet)', status=501)
             else:
@@ -944,7 +980,6 @@ def register_external_layer(request):
         try:
             service_id = request.POST.get("service_id")
             layer_list = request.POST.get("layer_list")
-            print layer_list
             layers = layer_list.split(',') 
             try:
                 service = Service.objects.get(pk = int(service_id))
@@ -954,26 +989,79 @@ def register_external_layer(request):
                     mimetype="text/plain",
                     status=404
                 )
-            # Assume this is a WMS for now
-            cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
-                            _user , _password)
-            # Can we always assume that it is geonode? 
-            geonode_ws = cat.get_workspace("geonode") 
-            store = cat.get_store(service.name,geonode_ws)
-            count = 0
-            for layer in layers: 
-                print layer
-                lyr = cat.get_resource(layer)
-                if(lyr == None):
-                    resource = cat.create_wmslayer(geonode_ws, store, layer) 
-                    Layer.objects.save_layer_from_geoserver(geonode_ws, 
-                                                            store, resource)
-                    count += 1
-            message = "%d Layers Registered" % count
-            return_dict = {'status': 'ok', 'msg': message }
-            return HttpResponse(json.dumps(return_dict),
-                                mimetype='application/json',
-                                status=200)
+            if service.method == 'C':
+                if service.type == 'WMS':
+                    cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
+                                    _user , _password)
+                    # Can we always assume that it is geonode? 
+                    geonode_ws = cat.get_workspace("geonode") 
+                    store = cat.get_store(service.name,geonode_ws)
+                    count = 0
+                    for layer in layers: 
+                        print layer
+                        lyr = cat.get_resource(layer)
+                        if(lyr == None):
+                            resource = cat.create_wmslayer(geonode_ws, store, layer) 
+                            Layer.objects.save_layer_from_geoserver(geonode_ws, 
+                                                                    store, resource)
+                            count += 1
+                    message = "%d Layers Registered" % count
+                    return_dict = {'status': 'ok', 'msg': message }
+                    return HttpResponse(json.dumps(return_dict),
+                                        mimetype='application/json',
+                                        status=200)
+                elif service.type == 'WFS':
+                    pass
+                elif service.type == 'WCS':
+                    pass
+                else:
+                    # WTF?
+                    pass
+            elif service.method == 'I':
+                if service.type == 'WMS':
+                    wms = WebMapService(service.base_url)
+                    count = 0
+                    for layer in layers:
+                        print layer 
+                        wms_layer = wms[layer]
+                        layer_uuid = str(uuid.uuid1())
+                        if wms_layer.keywords:
+                            keywords = ""
+                        else:
+                            keywords=' '.join(wms_layer.keywords)
+                        # Need to check if layer already exists??
+                        saved_layer, created = Layer.objects.get_or_create(name=wms_layer.name,
+                            defaults=dict(
+                                service = service,
+                                store=service.name, #??
+                                storeType="remoteStore",
+                                typename=wms_layer.name,
+                                workspace="remoteWorkspace",
+                                title=wms_layer.title,
+                                uuid=layer_uuid,
+                                keywords=keywords,
+                                owner=request.user,
+                                geographic_bounding_box = wms_layer.boundingBoxWGS84,
+                            )
+                        )
+                        count += 1
+                    message = "%d Layers Registered" % count
+                    return_dict = {'status': 'ok', 'msg': message }
+                    return HttpResponse(json.dumps(return_dict),
+                                        mimetype='application/json',
+                                        status=200)
+                elif service.type == 'WFS':
+                    pass
+                elif service.type == 'WCS':
+                    pass
+                else:
+                    # WTF?
+                    pass
+            elif service.method == 'X':
+                pass
+            else:
+                # WTF?
+                pass
         except:
             print '-'*60
             traceback.print_exc(file=sys.stdout)
