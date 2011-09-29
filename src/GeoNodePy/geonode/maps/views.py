@@ -869,6 +869,12 @@ def register_external_service(request):
             type = request.POST.get('type').upper()
             url = request.POST.get('url')
             name = request.POST.get('name')
+            if "user" in request.POST and "password" in request.POST:
+                user = request.POST.get('user')
+                password = request.POST.get('password')
+            else:
+                user = None
+                password = None
 
             # First Check if this service already exists based on the URL
             base_url = url.split('?')[0]
@@ -889,7 +895,7 @@ def register_external_service(request):
                                     _user , _password)
                     # Can we always assume that it is geonode?
                     geonode_ws = cat.get_workspace("geonode")
-                    ws = cat.create_wmsstore(name,geonode_ws)
+                    ws = cat.create_wmsstore(name,geonode_ws, user, password)
                     ws.capabilitiesURL = base_url
                     ws.type = "WMS"
                     cat.save(ws)
@@ -989,7 +995,9 @@ def register_external_layer(request):
                     mimetype="text/plain",
                     status=404
                 )
-            if service.method == 'C':
+            if service.method == 'L':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+            elif service.method == 'C':
                 if service.type == 'WMS':
                     cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
                                     _user , _password)
