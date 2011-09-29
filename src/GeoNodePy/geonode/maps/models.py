@@ -1034,6 +1034,8 @@ class Layer(models.Model, PermissionLevelMixin):
 
     @property
     def resource(self):
+        if self.storeType == 'remoteStore':
+            return None
         if not hasattr(self, "_resource_cache"):
             cat = Layer.objects.gs_catalog
             try:
@@ -1050,6 +1052,8 @@ class Layer(models.Model, PermissionLevelMixin):
         return self.resource.metadata_links
 
     def _set_metadata_links(self, md_links):
+        if self.storeType == 'remoteStore':
+            return None
         self.resource.metadata_links = md_links
 
     metadata_links = property(_get_metadata_links, _set_metadata_links)
@@ -1722,16 +1726,19 @@ def delete_layer(instance, sender, **kwargs):
     """
     Removes the layer from GeoServer and GeoNetwork
     """
-    instance.delete_from_geoserver()
+    if instance.storeType != 'remoteStore':
+        instance.delete_from_geoserver()
+
     instance.delete_from_geonetwork()
 
 def post_save_layer(instance, sender, **kwargs):
     instance._autopopulate()
-    instance.save_to_geoserver()
+    if instance.storeType != 'remoteStore':
+        instance.save_to_geoserver()
 
-    if kwargs['created']:
-        instance._populate_from_gs()
-
+        if kwargs['created']:
+            instance._populate_from_gs()
+   
     instance.save_to_geonetwork()
 
     if kwargs['created']:
