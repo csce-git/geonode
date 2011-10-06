@@ -126,6 +126,12 @@ Ext.onReady(function(){
         name: "permissions"
     });
 
+    var paymentField = new Ext.form.Hidden({
+        name: "payments",
+        value: '{"payment_options":[["1","40.00"],["2","50.00"],["4","60.00"]]}'
+    });
+    
+    
     var fp = new Ext.FormPanel({
         renderTo: 'upload_form',
         fileUpload: true,
@@ -138,7 +144,7 @@ Ext.onReady(function(){
             anchor: '95%',
             msgTarget: 'side'
         },
-        items: [layer_title, base_file, dbf_file, shx_file, prj_file, sld_file, abstractField, permissionsField, {
+        items: [layer_title, base_file, dbf_file, shx_file, prj_file, sld_file, abstractField, paymentField, permissionsField, {
             xtype: "hidden",
             name: "csrfmiddlewaretoken",
             value: "{{ csrf_token }}"
@@ -146,6 +152,10 @@ Ext.onReady(function(){
         buttons: [{
             text: gettext('Upload'),
             handler: function(){
+            	alert(permissionsField.getValue());
+            	var console = window.console;
+            	console.log(permissionsField.getValue());
+            	    
                 if (fp.getForm().isValid()) {
                     fp.getForm().submit({
                         url: form_target,

@@ -183,7 +183,7 @@ def cleanup(name, uuid):
 
 
 _separator = '\n' + ('-' * 100) + '\n'
-def save(layer, base_file, user, overwrite = True, title=None, abstract=None, permissions=None, keywords = []):
+def save(layer, base_file, user, overwrite = True, title=None, abstract=None, permissions=None, payment_options=None, keywords = []):
     """Upload layer data to Geoserver and registers it with Geonode.
 
        If specified, the layer given is overwritten, otherwise a new layer is created.
@@ -397,8 +397,15 @@ def save(layer, base_file, user, overwrite = True, title=None, abstract=None, pe
         from geonode.maps.views import set_layer_permissions
         set_layer_permissions(saved_layer, permissions)
 
-    # Step 12. Verify the layer was saved correctly and clean up if needed
-    logger.info('>>> Step 12. Verifying the layer [%s] was created correctly' % name)
+    # Step 12. Insert the payment options
+    logger.info('>>> Step 12. Setting payment options [%s]', name)
+    if payment_options is not None:
+        from anzsm.payment.utils import setPaymentOptions
+        setPaymentOptions(saved_layer, payment_options)    
+    
+  
+    # Step 13. Verify the layer was saved correctly and clean up if needed
+    logger.info('>>> Step 13. Verifying the layer [%s] was created correctly' % name)
 
     # Verify the object was saved to the Django database
     try:

@@ -873,11 +873,13 @@ def upload_layer(request):
             try:
                 tempdir, base_file = form.write_files()
                 name, __ = os.path.splitext(form.cleaned_data["base_file"].name)
+               
                 saved_layer = save(name, base_file, request.user, 
                         overwrite = False,
                         abstract = form.cleaned_data["abstract"],
                         title = form.cleaned_data["layer_title"],
-                        permissions = form.cleaned_data["permissions"]
+                        permissions = form.cleaned_data["permissions"],
+                        payment_options = form.cleaned_data["payments"]
                         )
                 return HttpResponse(json.dumps({
                     "success": True,
