@@ -805,7 +805,7 @@ GeoNode.PaymentSelector = Ext.extend(Ext.util.Observable, {
             
         });
         
-        function addSelectedPeriod() {
+        function addSelectedPeriod() {	
             var value = this.availablePeriods.getValue();
             var index = this.availablePeriods.store.findExact('payment_type_value', value);
             if (index != -1 &&
@@ -846,13 +846,12 @@ GeoNode.PaymentSelector = Ext.extend(Ext.util.Observable, {
             width: 130,
             emptyText: 'Enter cost for period',
             listeners: {
-                change: {
-                			fn:function (combo, value) {
-                    			this.periodCost = this.value;
-                    			this.fireEvent("updated", this);
-                			}
-           		},
-           		scope: this
+           		scope: this,
+           		specialkey: function(f,e){
+                    if (e.getKey() == e.ENTER) {
+                    	this.addSelectedPeriod;
+                    }
+           		}
             }
         });
         return new Ext.Panel({
