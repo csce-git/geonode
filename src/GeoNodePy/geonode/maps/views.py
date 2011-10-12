@@ -241,8 +241,14 @@ def newmap_config(request):
                 if not request.user.has_perm('maps.view_layer', obj=layer):
                     # invisible layer, skip inclusion
                     continue
-                    
-                layer_bbox = layer.resource.latlon_bbox
+                
+                if layer.storeType == 'remoteStore':
+                    gbbx = layer.geographic_bounding_box
+                    layer_bbox = gbbx.replace('(', '').replace(')', '').split(',')
+                    ows_url = layer.service.base_url
+                else:
+                    layer_bbox = layer.resource.latlon_bbox
+                    ows_url = settings.GEOSERVER_BASE_URL + "wms"
                 # assert False, str(layer_bbox)
                 if bbox is None:
                     bbox = list(layer_bbox[0:4])
@@ -255,7 +261,7 @@ def newmap_config(request):
                 layers.append(MapLayer(
                     map = map,
                     name = layer.typename,
-                    ows_url = settings.GEOSERVER_BASE_URL + "wms",
+                    ows_url = ows_url,
                     visibility = True
                 ))
 
@@ -843,7 +849,10 @@ def layerController(request, layername):
         
         metadata = layer.metadata_csw()
 
-        maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
+        if layer.storeType == 'remoteStore':
+            maplayer = MapLayer(name = layer.typename, ows_url = layer.service.base_url)
+        else:
+            maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
 
         # center/zoom don't matter; the viewer will center on the layer bounds
         map = Map(projection="EPSG:900913")
