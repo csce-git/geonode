@@ -886,7 +886,8 @@ def register_external_service(request):
                 password = None
 
             # First Check if this service already exists based on the URL
-            base_url = url.split('?')[0]
+            #base_url = url.split('?')[0] # This wont work with mapserver instances
+            base_url = url
             try:
                 service = Service.objects.get(base_url=base_url)
             except Service.DoesNotExist:
@@ -975,6 +976,9 @@ def register_external_service(request):
             else:
                 return HttpResponse('Invalid method', status=400)
         except:
+            print '-'*60
+            traceback.print_exc(file=sys.stdout)
+            print '-'*60
             print "Unexpected error:", sys.exc_info()
             return HttpResponse('Unexpected Error', status=500)
 
