@@ -878,8 +878,7 @@ def upload_layer(request):
                         overwrite = False,
                         abstract = form.cleaned_data["abstract"],
                         title = form.cleaned_data["layer_title"],
-                        permissions = form.cleaned_data["permissions"],
-                        payment_options = form.cleaned_data["payments"]
+                        permissions = form.cleaned_data["permissions"]
                         )
                 return HttpResponse(json.dumps({
                     "success": True,

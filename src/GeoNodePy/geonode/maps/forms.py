@@ -63,5 +63,4 @@ class NewLayerUploadForm(LayerUploadForm):
     abstract = forms.CharField(required=False)
     layer_title = forms.CharField(required=False)
     permissions = JSONField()
-    payments = JSONField()
     spatial_files = ("base_file", "dbf_file", "shx_file", "prj_file", "sld_file")
