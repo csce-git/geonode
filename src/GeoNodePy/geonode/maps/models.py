@@ -1648,5 +1648,14 @@ def post_save_layer(instance, sender, **kwargs):
         instance._populate_from_gn()
         instance.save(force_update=True)
 
+class search_history(models.Model):
+    search_keyword = models.CharField(max_length=100, db_column='search_keyword')
+    search_date = models.DateTimeField(db_column='search_date')
+    class Meta:
+        db_table = u'search_history'
+
+    def __unicode__(self):
+        return self.resource
+
 signals.pre_delete.connect(delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)

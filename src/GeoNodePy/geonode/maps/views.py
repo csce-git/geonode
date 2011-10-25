@@ -1,5 +1,5 @@
 from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
-from geonode.maps.models import Map, Layer, MapLayer, Contact, ContactRole,Role, get_csw
+from geonode.maps.models import Map, Layer, MapLayer, Contact, ContactRole,Role, get_csw, search_history
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
 from geonode import geonetwork
 import geoserver
@@ -32,6 +32,7 @@ from django.views.decorators.csrf import csrf_exempt, csrf_response_exempt
 from django.forms.models import inlineformset_factory
 from django.db.models import Q
 import logging
+import datetime
 
 logger = logging.getLogger("geonode.maps.views")
 
@@ -1202,6 +1203,8 @@ def metadata_search(request):
     # grab params directly to implement defaults as
     # opposed to panicy django forms behavior.
     query = params.get('q', '')
+    searchObj = search_history(search_keyword=query, search_date=datetime.datetime.now())
+    searchObj.save()
     try:
         start = int(params.get('start', '0'))
     except:
