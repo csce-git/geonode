@@ -29,7 +29,7 @@
                 }],
                 proxy: "/proxy/?url=",
                 localGeoServerBaseUrl: "{{GEOSERVER_BASE_URL}}",
-                authorizedRoles: "{{ user.is_authenticated|yesno:"ROLE_ADMINISTRATOR,ROLE_ANONYMOUS" }}",
+                authorizedRoles: "{{ request.user.is_authenticated|yesno:"ROLE_ADMINISTRATOR,ROLE_ANONYMOUS" }}",
 
                 /* The URL to a REST map configuration service.  This service 
                  * provides listing and, with an authenticated user, saving of 
@@ -83,14 +83,14 @@
                     params: {"defaultStyle" : elem.value}
                 });
             });
-{% has_obj_perm user layer "maps.change_layer" as can_change %}
+{% has_obj_perm request.user layer "maps.change_layer" as can_change %}
 {% if can_change %}
             Ext.get(Ext.DomQuery.select(".style-title")).on("click", function(evt, elem) {
                 showStyle(Ext.get(elem).prev("input").getAttribute("value"));
             });
 {% endif %}
 
-{% has_obj_perm user layer "maps.change_layer_permissions" as can_change_permissions %}
+{% has_obj_perm request.user layer "maps.change_layer_permissions" as can_change_permissions %}
 {% if can_change_permissions %}
             new GeoNode.PermissionsEditor({
                 renderTo: "permissions_form",
@@ -146,6 +146,8 @@
 <div class="twocol">
 	<div id="description">
 		<h3>{{ layer.resource.title|default:layer.typename }}</h3>
+		{% overall_rating layer "layer" as layer_rating %}
+		<div class="overall_rating" data-rating="{{ layer_rating }}"></div>
 		<g:plusone size="small" href="http://{{ request.get_host }}{{ request.get_full_path }}"></g:plusone>
 		<div class="fb-like" data-href="http://{{ request.get_host }}{{ request.get_full_path }}" data-send="false" data-width="50" data-layout="button_count" data-show-faces="false"></div>
 	</div>
@@ -221,6 +223,7 @@
 	{% user_rating request.user layer "layer" as user_layer_rating %}
 	<div id="user_rating" class="category-layer"></div>
 {% endif %}
+
 <h3>Comments</h3>
 <div class="comments_container">
 	{% comments layer as comments %}
@@ -282,8 +285,8 @@
     {% endif %}
     <p><a href="{% url geonode.maps.views.newmap %}?layer={{layer.typename}}">Create new map</a></p> 
 
-    {% has_obj_perm user layer "maps.change_layer" as can_change %}
-    {% has_obj_perm user layer "maps.delete_layer" as can_delete %}
+    {% has_obj_perm request.user layer "maps.change_layer" as can_change %}
+    {% has_obj_perm request.user layer "maps.delete_layer" as can_delete %}
 
     {% if not layer.storeType == "remoteStore" %}
     <h3> {% trans "Styles" %} </h3>
@@ -299,7 +302,7 @@
         <a href="{{ style.body_href }}">SLD</a><br/>
     {% endfor %}
     </span>
-    {% if user.is_authenticated and can_change %}
+    {% if request.user.is_authenticated and can_change %}
     {% trans "Default style:" %}
     <select name="default-style">
         <option value="{{layer.publishing.default_style.name}}" selected="selected">
@@ -317,12 +320,12 @@
 
 
     {% if not layer.storeType == "remoteStore" %}
-    {% if user.is_authenticated %}
+    {% if request.user.is_authenticated %}
     {% if can_change or can_delete or can_change_permissions %}
 
         <h3> {% trans "Manage" %} </h3>
         <ul>
-			{% if user.is_authenticated %}
+			{% if request.user.is_authenticated %}
         {% if can_change %}
                 <li><a href="?describe">{% trans "Update the description of this data" %}</a></li>
             	<li><a href="?update">{% trans "Upload a new version of this data" %}</a></li>
@@ -338,7 +341,7 @@
 			{% endif %}
         </ul>
     {% endif %}
-    {% has_obj_perm user layer "maps.change_layer_permissions" as can_change_permissions %}
+    {% has_obj_perm request.user layer "maps.change_layer_permissions" as can_change_permissions %}
     {% if can_change_permissions %}
     <h3>{% trans "Permissions" %}</h3>
       <div id="permissions_form"></div>
@@ -354,7 +357,7 @@
 {% else %}
 	<script src="{{ STATIC_URL }}agon_ratings/js/jquery.raty.js"></script>
 {% endif %}
-<script>
+<script type="text/javascript">
 	$(function() {
 		$('div.overall_rating').raty({
 			half: true,
@@ -363,7 +366,7 @@
 			path: "{{ STATIC_URL }}agon_ratings/img/"
 		});
 	});
-<script type="text/javascript">
+
 	(function() {
 		var po = document.createElement('script'); po.type = 'text/javascript'; po.async = true;
 		po.src = 'https://apis.google.com/js/plusone.js';
