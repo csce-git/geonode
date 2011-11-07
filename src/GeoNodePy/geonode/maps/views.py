@@ -856,13 +856,13 @@ def layerController(request, layername):
         # center/zoom don't matter; the viewer will center on the layer bounds
         map = Map(projection="EPSG:900913")
 
-        return render_to_response('maps/layer.html', RequestContext(request, {
+        return render_to_response('maps/layer.html', { 
             "layer": layer,
             "metadata": metadata,
             "viewer": json.dumps(map.viewer_json(* (DEFAULT_BASE_LAYERS + [maplayer]))),
             "permissions_json": _perms_info_json(layer, LAYER_LEV_NAMES),
             "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL
-	    }))
+	    }, context_instance=RequestContext(request))
 
 @login_required
 def register_external_service(request):
