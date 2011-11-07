@@ -604,6 +604,7 @@ class LayerManager(models.Manager):
         if verbosity > 1:
             print >> console, "Inspecting the available layers in GeoServer ..."
         cat = self.gs_catalog
+        gn = self.gn_catalog
         resources = cat.get_resources()
         number = len(resources)
         if verbosity > 1:
@@ -611,22 +612,11 @@ class LayerManager(models.Manager):
             print >> console, msg
         output = []
         for i, resource in enumerate(resources):
-            name = resource.name
-            store = resource.store
-            workspace = store.workspace
             try:
-<<<<<<< HEAD
-                layer, created = Layer.objects.get_or_create(name=name, defaults = {
-                    "workspace": workspace.name,
-                    "store": store.name,
-                    "storeType": store.resource_type,
-                    "typename": "%s:%s" % (workspace.name, resource.name),
-                    "title": resource.title or 'No title provided',
-                    "abstract": resource.abstract or 'No abstract provided',
-                    "uuid": str(uuid.uuid4())
-                })
-
-                layer.save()
+                name = resource.name
+                store = resource.store
+                workspace = store.workspace
+                status = self.save_layer_from_geoserver(workspace, store, resource)
             except Exception, e:
                 if ignore_errors:
                     status = 'failed'
@@ -636,12 +626,6 @@ class LayerManager(models.Manager):
                         msg = "Stopping process because --strict=True and an error was found."
                         print >> sys.stderr, msg
                     raise Exception('Failed to process %s' % resource.name, e), None, sys.exc_info()[2]
-            else:
-                if created:
-                    layer.set_default_permissions()
-                    status = 'created'
-                else:
-                    status = 'updated'
 
             msg = "[%s] Layer %s (%d/%d)" % (status, name, i, number)
             info = {'name': name, 'status': status}
@@ -652,18 +636,11 @@ class LayerManager(models.Manager):
             output.append(info)
             if verbosity > 0:
                 print >> console, msg
-        return output
 
-=======
-                store = resource.store
-                workspace = store.workspace
-                self.save_layer_from_geoserver(workspace, store, resource)
-            finally:
-                pass
-        
         # Doing a logout since we know we don't need this object anymore.
         gn.logout()
->>>>>>> f568a6a56a4a67dac401863c3fe0c7302e131b9c
+
+        return output
 
     def save_layer_from_geoserver(self, workspace, store, resource):
         cat = self.gs_catalog
@@ -705,6 +682,10 @@ class LayerManager(models.Manager):
             layer.save()
             if created: 
                 layer.set_default_permissions()
+                status = 'created'
+            else:
+                status = 'updated'
+            return status
         finally:
             pass
 
