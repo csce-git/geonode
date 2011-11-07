@@ -27,7 +27,11 @@ urlpatterns = patterns('',
     url(r'^lang\.js$', 'django.views.generic.simple.direct_to_template',
                {'template': 'lang.js', 'mimetype': 'text/javascript'}, 'lang'),
     (r'^maps/', include('geonode.maps.urls')),
+<<<<<<< HEAD
     (r'^ratings/', include('agon_ratings.urls')),
+=======
+    (r'^comments/', include('dialogos.urls')),
+>>>>>>> e525b7877cc53031f00985d5d652ac9d0d055d35
     url(r'^data/$', 'geonode.maps.views.browse_data', name='data'),
     url(r'^data/acls/?$', 'geonode.maps.views.layer_acls', name='layer_acls'),
     url(r'^data/search/?$', 'geonode.maps.views.search_page', name='search'),
