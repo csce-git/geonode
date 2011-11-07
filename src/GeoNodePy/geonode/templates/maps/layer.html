@@ -192,7 +192,9 @@
 {% endif %}
 
 {% if layer.geographic_bounding_box %}<p> <strong>{% trans "Bounding Box" %}:</strong> {{ layer.geographic_bounding_box }} </p>{% endif %}
+{% if not layer.storeType == "remoteStore" %}
 {% if layer.metadata.crsOptions %}<p> <strong>{% trans "Native SRS" %}:</strong> {{ layer.metadata.crsOptions.0|default:_("No SRS specified.") }} </p>{% endif %}
+{% endif %}
 
 </div>
 {% endblock %}
@@ -228,6 +230,7 @@
     {% has_obj_perm user layer "maps.change_layer" as can_change %}
     {% has_obj_perm user layer "maps.delete_layer" as can_delete %}
 
+    {% if not layer.storeType == "remoteStore" %}
     <h3> {% trans "Styles" %} </h3>
     <p> {% trans "The following styles are associated with this data set.  Choose a style to view it in the preview to the left.  Click on a style name to view or edit the style." %}
     <br/>
@@ -253,11 +256,12 @@
     </select><br/>
     <a href="javascript:showStyle()">Create new style</a>
     {% endif %}
+    {% endif %}
 
     </p>
 
 
-
+    {% if not layer.storeType == "remoteStore" %}
     {% if user.is_authenticated %}
     {% if can_change or can_delete or can_change_permissions %}
 
@@ -283,6 +287,7 @@
     {% if can_change_permissions %}
     <h3>{% trans "Permissions" %}</h3>
       <div id="permissions_form"></div>
+    {% endif %}
     {% endif %}
     {% endif %}
 </div>

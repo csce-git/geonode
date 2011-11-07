@@ -1,9 +1,10 @@
 from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
-from geonode.maps.models import Map, Layer, MapLayer, Contact, ContactRole,Role, get_csw, search_history
+from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole,Role, get_csw, search_history
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
 from geonode import geonetwork
 import geoserver
-from geoserver.resource import FeatureType, Coverage
+from geoserver.catalog import Catalog
+from geoserver.resource import FeatureType, Coverage, WmsLayer
 import base64
 from django import forms
 from django.contrib.auth import authenticate, get_backends as get_auth_backends
@@ -23,6 +24,7 @@ import math
 import httplib2 
 from owslib.csw import CswRecord, namespaces
 from owslib.util import nspath
+from owslib.wms import WebMapService
 import re
 from urllib import urlencode
 from urlparse import urlparse
@@ -33,6 +35,7 @@ from django.forms.models import inlineformset_factory
 from django.db.models import Q
 import logging
 import datetime
+import sys, traceback
 
 logger = logging.getLogger("geonode.maps.views")
 
@@ -238,8 +241,14 @@ def newmap_config(request):
                 if not request.user.has_perm('maps.view_layer', obj=layer):
                     # invisible layer, skip inclusion
                     continue
-                    
-                layer_bbox = layer.resource.latlon_bbox
+                
+                if layer.storeType == 'remoteStore':
+                    gbbx = layer.geographic_bounding_box
+                    layer_bbox = gbbx.replace('(', '').replace(')', '').split(',')
+                    ows_url = layer.service.base_url
+                else:
+                    layer_bbox = layer.resource.latlon_bbox
+                    ows_url = settings.GEOSERVER_BASE_URL + "wms"
                 # assert False, str(layer_bbox)
                 if bbox is None:
                     bbox = list(layer_bbox[0:4])
@@ -252,7 +261,7 @@ def newmap_config(request):
                 layers.append(MapLayer(
                     map = map,
                     name = layer.typename,
-                    ows_url = settings.GEOSERVER_BASE_URL + "wms",
+                    ows_url = ows_url,
                     visibility = True
                 ))
 
@@ -840,7 +849,10 @@ def layerController(request, layername):
         
         metadata = layer.metadata_csw()
 
-        maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
+        if layer.storeType == 'remoteStore':
+            maplayer = MapLayer(name = layer.typename, ows_url = layer.service.base_url)
+        else:
+            maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
 
         # center/zoom don't matter; the viewer will center on the layer bounds
         map = Map(projection="EPSG:900913")
@@ -853,6 +865,236 @@ def layerController(request, layername):
             "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL
 	    }))
 
+@login_required
+def register_external_service(request):
+    if request.method == "GET":
+        return render_to_response('maps/register_service.html',
+                                  RequestContext(request, {}))
+
+    elif request.method == 'POST':
+        # Register a new Service
+        try:
+            method = request.POST.get('method').upper()
+            type = request.POST.get('type').upper()
+            url = request.POST.get('url')
+            name = request.POST.get('name')
+            if "user" in request.POST and "password" in request.POST:
+                user = request.POST.get('user')
+                password = request.POST.get('password')
+            else:
+                user = None
+                password = None
+
+            # First Check if this service already exists based on the URL
+            #base_url = url.split('?')[0] # This wont work with mapserver instances
+            base_url = url
+            try:
+                service = Service.objects.get(base_url=base_url)
+            except Service.DoesNotExist:
+                service = None
+            if service is not None:
+                return HttpResponse('Service already Exists',status=400)
+            # Probably need to enforce the name being unique too
+            
+            if method == 'L':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+            elif method == 'C':
+                if type == 'WMS':
+                    # Register the Service with GeoServer to be cascaded
+                    cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
+                                    _user , _password)
+                    # Can we always assume that it is geonode?
+                    geonode_ws = cat.get_workspace("geonode")
+                    ws = cat.create_wmsstore(name,geonode_ws, user, password)
+                    ws.capabilitiesURL = base_url
+                    ws.type = "WMS"
+                    cat.save(ws)
+                    available_resources = ws.get_resources(available=True)
+                    
+                    # Save the Service record
+                    service = Service(type = type,
+                                        method=method,
+                                        base_url = base_url,
+                                        name = name,
+                                        owner = request.user)
+                    service.save()
+                    message = "Service %s registered" % service.name
+                    return_dict = {'status': 'ok', 'msg': message, 
+                                    'id': service.pk,
+                                    'available_layers': available_resources}
+                    return HttpResponse(json.dumps(return_dict), 
+                                        mimetype='application/json',
+                                        status=200)        
+                elif type == 'WFS' or type == 'WCS':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+                else:
+                    return HttpResponse(
+                        'Invalid Method / Type combo: ' + 
+                        'Only Cascaded WMS, WFS and WCS supported',
+                        mimetype="text/plain",
+                        status=400
+                    )
+            elif method == 'I':
+                if type == 'WMS':
+                    wms = WebMapService(base_url)
+                    service = Service(type = type,
+                                        method=method,
+                                        base_url = base_url,
+                                        name = name,
+                                        version = wms.identification.version,
+                                        title = wms.identification.title,
+                                        abstract = wms.identification.abstract,
+                                        keywords = ','.join(wms.identification.keywords),
+                                        online_resource = wms.provider.url,
+                                        owner=request.user)
+                    service.save()
+                    available_resources = []
+                    for layer in list(wms.contents):
+                        available_resources.append(wms[layer].name)
+                    message = "Service %s registered" % service.name
+                    return_dict = {'status': 'ok', 'msg': message,
+                                    'id': service.pk,
+                                    'available_layers': available_resources}
+                    return HttpResponse(json.dumps(return_dict),
+                                        mimetype='application/json',
+                                        status=200)
+                elif type == 'WFS':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+                elif type == 'WCS':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+                elif type == 'CSW':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+                else:
+                    return HttpResponse(
+                        'Invalid Method / Type combo: ' + 
+                        'Only Indexed WMS, WFS, WCS and CSW supported',
+                        mimetype="text/plain",
+                        status=400
+                    )
+            elif method == 'X':
+                return HttpResponse('Not Implemented (Yet)', status=501)
+            else:
+                return HttpResponse('Invalid method', status=400)
+        except:
+            print '-'*60
+            traceback.print_exc(file=sys.stdout)
+            print '-'*60
+            print "Unexpected error:", sys.exc_info()
+            return HttpResponse('Unexpected Error', status=500)
+
+    elif request.method == 'PUT':
+        # Update a previously registered Service
+        return HttpResponse('Not Implemented (Yet)', status=501)
+    elif request.method == 'DELETE':
+        # Delete a previously registered Service
+        return HttpResponse('Not Implemented (Yet)', status=501)
+    else:
+        return HttpResponse('Invalid Request', status = 400)
+
+@login_required
+def register_external_layer(request):
+    if request.method == 'GET':
+        return HttpResponse('Not Implemented (Yet)', status=501)
+    elif request.method == 'POST':
+        try:
+            service_id = request.POST.get("service_id")
+            layer_list = request.POST.get("layer_list")
+            layers = layer_list.split(',') 
+            try:
+                service = Service.objects.get(pk = int(service_id))
+            except Service.DoesNotExist:
+                return HttpResponse(
+                    'No Service mathing id exists',
+                    mimetype="text/plain",
+                    status=404
+                )
+            if service.method == 'L':
+                    return HttpResponse('Not Implemented (Yet)', status=501)
+            elif service.method == 'C':
+                if service.type == 'WMS':
+                    cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
+                                    _user , _password)
+                    # Can we always assume that it is geonode? 
+                    geonode_ws = cat.get_workspace("geonode") 
+                    store = cat.get_store(service.name,geonode_ws)
+                    count = 0
+                    for layer in layers: 
+                        print layer
+                        lyr = cat.get_resource(layer)
+                        if(lyr == None):
+                            resource = cat.create_wmslayer(geonode_ws, store, layer) 
+                            Layer.objects.save_layer_from_geoserver(geonode_ws, 
+                                                                    store, resource)
+                            count += 1
+                    message = "%d Layers Registered" % count
+                    return_dict = {'status': 'ok', 'msg': message }
+                    return HttpResponse(json.dumps(return_dict),
+                                        mimetype='application/json',
+                                        status=200)
+                elif service.type == 'WFS':
+                    pass
+                elif service.type == 'WCS':
+                    pass
+                else:
+                    # WTF?
+                    pass
+            elif service.method == 'I':
+                if service.type == 'WMS':
+                    wms = WebMapService(service.base_url)
+                    count = 0
+                    for layer in layers:
+                        print layer 
+                        wms_layer = wms[layer]
+                        layer_uuid = str(uuid.uuid1())
+                        if wms_layer.keywords:
+                            keywords = ""
+                        else:
+                            keywords=' '.join(wms_layer.keywords)
+                        # Need to check if layer already exists??
+                        saved_layer, created = Layer.objects.get_or_create(name=wms_layer.name,
+                            defaults=dict(
+                                service = service,
+                                store=service.name, #??
+                                storeType="remoteStore",
+                                typename=wms_layer.name,
+                                workspace="remoteWorkspace",
+                                title=wms_layer.title,
+                                uuid=layer_uuid,
+                                keywords=keywords,
+                                owner=request.user,
+                                geographic_bounding_box = wms_layer.boundingBoxWGS84,
+                            )
+                        )
+                        count += 1
+                    message = "%d Layers Registered" % count
+                    return_dict = {'status': 'ok', 'msg': message }
+                    return HttpResponse(json.dumps(return_dict),
+                                        mimetype='application/json',
+                                        status=200)
+                elif service.type == 'WFS':
+                    pass
+                elif service.type == 'WCS':
+                    pass
+                else:
+                    # WTF?
+                    pass
+            elif service.method == 'X':
+                pass
+            else:
+                # WTF?
+                pass
+        except:
+            print '-'*60
+            traceback.print_exc(file=sys.stdout)
+            print '-'*60 
+            return HttpResponse('Unexpected Error', status=501)
+    elif request.method == 'PUT':
+        return HttpResponse('Not Implemented (Yet)', status=501)
+    elif request.method == 'DELETE':
+        return HttpResponse('Not Implemented (Yet)', status=501)
+    else:
+        return HttpResponse('Invalid Request', status = 400)
+        
 
 GENERIC_UPLOAD_ERROR = _("There was an error while attempting to upload your data. \
 Please try again, or contact and administrator if the problem continues.")
