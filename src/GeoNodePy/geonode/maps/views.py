@@ -946,8 +946,21 @@ def register_external_service(request):
                     wfs_ds.connection_parameters = connection_params
                     cat.save(wfs_ds)
                     available_resources = wfs_ds.get_resources(available=True)
-                    print available_resources
-                    return HttpResponse('Working on it', status=200)
+                    
+                    # Save the Service record
+                    service = Service(type = type,
+                                        method=method,
+                                        base_url = base_url,
+                                        name = name,
+                                        owner = request.user)
+                    service.save()
+                    message = "Service %s registered" % service.name
+                    return_dict = {'status': 'ok', 'msg': message, 
+                                    'id': service.pk,
+                                    'available_layers': available_resources}
+                    return HttpResponse(json.dumps(return_dict), 
+                                        mimetype='application/json',
+                                        status=200)        
                 elif type == 'WCS':
                     return HttpResponse('Not Implemented (Yet)', status=501)
                 else:
@@ -1034,7 +1047,7 @@ def register_external_layer(request):
             if service.method == 'L':
                     return HttpResponse('Not Implemented (Yet)', status=501)
             elif service.method == 'C':
-                if service.type == 'WMS':
+                if service.type == 'WMS' or service.type == "WFS":
                     cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
                                     _user , _password)
                     # Can we always assume that it is geonode? 
@@ -1045,7 +1058,10 @@ def register_external_layer(request):
                         print layer
                         lyr = cat.get_resource(layer)
                         if(lyr == None):
-                            resource = cat.create_wmslayer(geonode_ws, store, layer) 
+                            if service.type == "WMS":
+                                resource = cat.create_wmslayer(geonode_ws, store, layer) 
+                            elif service.type == "WFS":
+                                resource = cat.create_wfslayer(geonode_ws, store, layer) 
                             Layer.objects.save_layer_from_geoserver(geonode_ws, 
                                                                     store, resource)
                             count += 1
@@ -1054,13 +1070,10 @@ def register_external_layer(request):
                     return HttpResponse(json.dumps(return_dict),
                                         mimetype='application/json',
                                         status=200)
-                elif service.type == 'WFS':
-                    pass
                 elif service.type == 'WCS':
-                    pass
+                    return HttpResponse('Not Implemented (Yet)', status=501)
                 else:
-                    # WTF?
-                    pass
+                    return HttpResponse('Invalid Service Type', status=400)
             elif service.method == 'I':
                 if service.type == 'WMS':
                     wms = WebMapService(service.base_url)
@@ -1095,17 +1108,15 @@ def register_external_layer(request):
                                         mimetype='application/json',
                                         status=200)
                 elif service.type == 'WFS':
-                    pass
+                    return HttpResponse('Not Implemented (Yet)', status=501)
                 elif service.type == 'WCS':
-                    pass
+                    return HttpResponse('Not Implemented (Yet)', status=501)
                 else:
-                    # WTF?
-                    pass
+                    return HttpResponse('Invalid Service Type', status=400)
             elif service.method == 'X':
-                pass
+                return HttpResponse('Not Implemented (Yet)', status=501)
             else:
-                # WTF?
-                pass
+                return HttpResponse('Invalid Service Type', status=400)
         except:
             print '-'*60
             traceback.print_exc(file=sys.stdout)
