@@ -1108,12 +1108,7 @@ class Layer(models.Model, PermissionLevelMixin):
         meta = self.metadata_csw()
         if meta is None:
             return
-        kw_list = reduce(
-                lambda x, y: x + y["keywords"],
-                meta.identification.keywords,
-                [])
-        kw_list = filter(lambda x: x is not None, kw_list)
-        self.keywords = ' '.join(kw_list)
+        self.keywords = ' '.join([word for word in meta.identification.keywords['list'] if isinstance(word,str)])
         if hasattr(meta.distribution, 'online'):
             onlineresources = [r for r in meta.distribution.online if r.protocol == "WWW:LINK-1.0-http--link"]
             if len(onlineresources) == 1:
@@ -1156,6 +1151,7 @@ class Layer(models.Model, PermissionLevelMixin):
     LEVEL_ADMIN = 'layer_admin'
                  
     def set_default_permissions(self):
+        # shen default permission
         self.set_gen_level(ANONYMOUS_USERS, self.LEVEL_READ)
         self.set_gen_level(AUTHENTICATED_USERS, self.LEVEL_READ) 
 
