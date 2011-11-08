@@ -604,6 +604,7 @@ class LayerManager(models.Manager):
         if verbosity > 1:
             print >> console, "Inspecting the available layers in GeoServer ..."
         cat = self.gs_catalog
+        gn = self.gn_catalog
         resources = cat.get_resources()
         number = len(resources)
         if verbosity > 1:
@@ -611,21 +612,11 @@ class LayerManager(models.Manager):
             print >> console, msg
         output = []
         for i, resource in enumerate(resources):
-            name = resource.name
-            store = resource.store
-            workspace = store.workspace
             try:
-                layer, created = Layer.objects.get_or_create(name=name, defaults = {
-                    "workspace": workspace.name,
-                    "store": store.name,
-                    "storeType": store.resource_type,
-                    "typename": "%s:%s" % (workspace.name, resource.name),
-                    "title": resource.title or 'No title provided',
-                    "abstract": resource.abstract or 'No abstract provided',
-                    "uuid": str(uuid.uuid4())
-                })
-
-                layer.save()
+                name = resource.name
+                store = resource.store
+                workspace = store.workspace
+                status = self.save_layer_from_geoserver(workspace, store, resource)
             except Exception, e:
                 if ignore_errors:
                     status = 'failed'
@@ -635,12 +626,6 @@ class LayerManager(models.Manager):
                         msg = "Stopping process because --strict=True and an error was found."
                         print >> sys.stderr, msg
                     raise Exception('Failed to process %s' % resource.name, e), None, sys.exc_info()[2]
-            else:
-                if created:
-                    layer.set_default_permissions()
-                    status = 'created'
-                else:
-                    status = 'updated'
 
             msg = "[%s] Layer %s (%d/%d)" % (status, name, i, number)
             info = {'name': name, 'status': status}
@@ -651,8 +636,117 @@ class LayerManager(models.Manager):
             output.append(info)
             if verbosity > 0:
                 print >> console, msg
+
+        # Doing a logout since we know we don't need this object anymore.
+        gn.logout()
+
         return output
 
+    def save_layer_from_geoserver(self, workspace, store, resource):
+        cat = self.gs_catalog
+        gn = self.gn_catalog
+        if store.resource_type == "wmsStore":
+            service, created = Service.objects.get_or_create(type = 'WMS', method = 'C',
+                                                base_url = store.capabilitiesURL.split('?')[0],
+                                                name = store.name)      
+        else:
+            service, created = Service.objects.get_or_create(type = 'OWS', method='L',
+                                                base_url = settings.GEOSERVER_BASE_URL + "ows",
+                                                name = settings.SITENAME)
+        try:
+            layer, created = self.get_or_create(name=resource.name, defaults = {
+                "service": service,
+                "workspace": workspace.name,
+                "store": store.name,
+                "storeType": store.resource_type,
+                "typename": "%s:%s" % (workspace.name, resource.name),
+                "title": resource.title or 'No title provided',
+                "abstract": resource.abstract or 'No abstract provided',
+                "uuid": str(uuid.uuid4())
+            })
+
+            ## Due to a bug in GeoNode versions prior to 1.0RC2, the data
+            ## in the database may not have a valid date_type set.  The
+            ## invalid values are expected to differ from the acceptable
+            ## values only by case, so try to convert, then fallback to a
+            ## default.
+            ##
+            ## We should probably drop this adjustment in 1.1. --David Winslow
+            if layer.date_type not in Layer.VALID_DATE_TYPES:
+                candidate = lower(layer.date_type)
+                if candidate in Layer.VALID_DATE_TYPES:
+                    layer.date_type = candidate
+                else:
+                    layer.date_type = Layer.VALID_DATE_TYPES[0]
+
+            layer.save()
+            if created: 
+                layer.set_default_permissions()
+                status = 'created'
+            else:
+                status = 'updated'
+            return status
+        finally:
+            pass
+
+SERVICE_TYPES = (
+	('OWS', 'Paired WMS/WFS/WCS'),
+	('WMS', 'Web Map Service'),
+	('WFS', 'Web Feature Service'),
+	('WCS', 'Web Coverage Service'),
+	('WPS', 'Web Processing Service'),
+	('CSW', 'Catalogue Service'),
+	('WMTS', 'Web Map Tile Service'),
+	('TMS', 'Tile Map Service'),
+	('OSG', 'OpenSearch Geo Service'),
+)
+
+SERVICE_METHODS = (
+    ('L', 'Local'),
+    ('C', 'Cascaded'),
+    ('I', 'Indexed'),
+    ('X', 'Live'),
+)
+
+class Service(models.Model, PermissionLevelMixin):
+    """
+    Service Class to represent remote Geo Web Services
+    """
+    
+    type = models.CharField(max_length=4, choices=SERVICE_TYPES)
+    method = models.CharField(max_length=1, choices=SERVICE_METHODS)
+    base_url = models.URLField(verify_exists=False, unique=True) # with service, version and request etc stripped off 
+    version = models.CharField(max_length=10, null=True, blank=True)
+    name = models.CharField(max_length=255, unique=True) #Should force to slug?
+    title = models.CharField(max_length=255, null=True, blank=True)
+    description = models.CharField(max_length=255, null=True, blank=True)
+    abstract = models.TextField(null=True, blank=True)
+    keywords = models.TextField(null=True, blank=True)
+    online_resource = models.URLField(verify_exists = False, null=True, blank=True)
+    fees = models.CharField(max_length=1000, null=True, blank=True)
+    access_contraints = models.CharField(max_length=255, null=True, blank=True)
+    connection_params = models.TextField(null=True, blank=True)
+    username = models.CharField(max_length=50, null=True, blank=True)
+    password = models.CharField(max_length=50, null=True, blank=True)
+    api_key = models.CharField(max_length=255, null=True, blank=True)
+    workspace_ref = models.URLField(verify_exists = False, null=True, blank=True)
+    store_ref = models.URLField(verify_exists = False, null=True, blank=True)
+    resources_ref = models.URLField(verify_exists = False, null = True, blank = True)
+    contacts = models.ManyToManyField(Contact, through='ServiceContactRole')
+    owner = models.ForeignKey(User, blank=True, null=True)
+    created = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
+    first_noanswer = models.DateTimeField(null=True, blank=True)
+    noanswer_retries = models.PositiveIntegerField(null=True, blank=True)
+	
+    # Supported Capabilities
+    
+    def __unicode__(self):
+        return self.name
+
+    def layers(self):
+        """Return a list of all the child layers (resources) for this Service"""
+        pass 
 
 class Layer(models.Model, PermissionLevelMixin):
     """
@@ -663,6 +757,7 @@ class Layer(models.Model, PermissionLevelMixin):
 
     # internal fields
     objects = LayerManager()
+    service = models.ForeignKey(Service, null=True, blank=True)
     workspace = models.CharField(max_length=128)
     store = models.CharField(max_length=128)
     storeType = models.CharField(max_length=128)
@@ -977,6 +1072,8 @@ class Layer(models.Model, PermissionLevelMixin):
 
     @property
     def resource(self):
+        if self.storeType == 'remoteStore':
+            return None
         if not hasattr(self, "_resource_cache"):
             cat = Layer.objects.gs_catalog
             try:
@@ -993,6 +1090,8 @@ class Layer(models.Model, PermissionLevelMixin):
         return self.resource.metadata_links
 
     def _set_metadata_links(self, md_links):
+        if self.storeType == 'remoteStore':
+            return None
         self.resource.metadata_links = md_links
 
     metadata_links = property(_get_metadata_links, _set_metadata_links)
@@ -1463,6 +1562,11 @@ class MapLayer(models.Model):
     The map containing this layer
     """
 
+    layer = models.ForeignKey(Layer, null=True, blank=True)
+    """
+    The Layer object (can be remote layer)
+    """
+
     stack_order = models.IntegerField(_('stack order'))
     """
     The z-index of this layer in the map; layers with a higher stack_order will
@@ -1618,6 +1722,14 @@ class Role(models.Model):
         return self.get_value_display()
 
 
+class ServiceContactRole(models.Model):
+    """
+    ServiceContactRole is an intermediate model to bind Contacts and Services and apply roles.
+    """
+    contact = models.ForeignKey(Contact)
+    service = models.ForeignKey(Service)
+    role = models.ForeignKey(Role)
+
 class ContactRole(models.Model):
     """
     ContactRole is an intermediate model to bind Contacts and Layers and apply roles.
@@ -1653,16 +1765,19 @@ def delete_layer(instance, sender, **kwargs):
     """
     Removes the layer from GeoServer and GeoNetwork
     """
-    instance.delete_from_geoserver()
+    if instance.storeType != 'remoteStore':
+        instance.delete_from_geoserver()
+
     instance.delete_from_geonetwork()
 
 def post_save_layer(instance, sender, **kwargs):
     instance._autopopulate()
-    instance.save_to_geoserver()
+    if instance.storeType != 'remoteStore':
+        instance.save_to_geoserver()
 
-    if kwargs['created']:
-        instance._populate_from_gs()
-
+        if kwargs['created']:
+            instance._populate_from_gs()
+   
     instance.save_to_geonetwork()
 
     if kwargs['created']:
