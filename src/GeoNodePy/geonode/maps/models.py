@@ -23,6 +23,7 @@ from StringIO import StringIO
 from xml.etree.ElementTree import parse, XML
 from gs_helpers import cascading_delete
 import logging
+import sys
 
 logger = logging.getLogger("geonode.maps.models")
 
@@ -594,19 +595,51 @@ class LayerManager(models.Manager):
     def default_metadata_author(self):
         return self.admin_contact()
 
-    def slurp(self):
+    def slurp(self, ignore_errors=True, verbosity=1, console=sys.stdout):
+        """Configure the layers available in GeoServer in GeoNode.
+
+           It returns a list of dictionaries with the name of the layer,
+           the result of the operation and the errors and traceback if it failed.
+        """
+        if verbosity > 1:
+            print >> console, "Inspecting the available layers in GeoServer ..."
         cat = self.gs_catalog
-        gn = self.gn_catalog
-        for resource in cat.get_resources():
+        resources = cat.get_resources()
+        number = len(resources)
+        if verbosity > 1:
+            msg =  "Found %d layers, starting processing" % number
+            print >> console, msg
+        output = []
+        for i, resource in enumerate(resources):
             try:
+                name = resource.name
                 store = resource.store
                 workspace = store.workspace
-                self.save_layer_from_geoserver(workspace, store, resource)
-            finally:
-                pass
-        
+                status = self.save_layer_from_geoserver(workspace, store, resource)
+            except Exception e:
+                if ignore_errors:
+                    status = 'failed'
+                    exception_type, error, traceback = sys.exc_info()
+                else:
+                    if verbosity > 0:
+                        msg = "Stopping process because --strict=True and an error was found."
+                        print >> sys.stderr, msg
+                    raise Exception('Failed to process %s' % resource.name, e), None, sys.exc_info()[2]        
+
+            msg = "[%s] Layer %s (%d/%d)" % (status, name, i, number)
+            info = {'name': name, 'status': status}
+            if status == 'failed':
+                info['traceback'] = traceback
+                info['exception_type'] = exception_type
+                info['error'] = error
+            output.append(info)
+            if verbosity > 0:
+                print >> console, msg
+
         # Doing a logout since we know we don't need this object anymore.
         gn.logout()
+
+        return output
 
     def save_layer_from_geoserver(self, workspace, store, resource):
         cat = self.gs_catalog
@@ -646,8 +679,13 @@ class LayerManager(models.Manager):
                     layer.date_type = Layer.VALID_DATE_TYPES[0]
 
             layer.save()
+
             if created: 
                 layer.set_default_permissions()
+                status = 'created'
+            else:
+                status = 'updated'
+            return status
         finally:
             pass
 
@@ -1169,7 +1207,12 @@ class Layer(models.Model, PermissionLevelMixin):
         meta = self.metadata_csw()
         if meta is None:
             return
-        self.keywords = ' '.join([word for word in meta.identification.keywords['list'] if isinstance(word,str)])
+        kw_list = reduce(
+                lambda x, y: x + y["keywords"],
+                meta.identification.keywords,
+                [])
+        kw_list = filter(lambda x: x is not None, kw_list)
+        self.keywords = ' '.join(kw_list)
         if hasattr(meta.distribution, 'online'):
             onlineresources = [r for r in meta.distribution.online if r.protocol == "WWW:LINK-1.0-http--link"]
             if len(onlineresources) == 1:

@@ -278,7 +278,7 @@ REGISTRATION_OPEN = False
 
 SERVE_MEDIA = DEBUG;
 
-GEONODE_CLIENT_LOCATION = "/media/geonode/"
+GEONODE_CLIENT_LOCATION = "/media/static/"
 
 #Import uploaded shapefiles into a database such as PostGIS?
 DB_DATASTORE=False
