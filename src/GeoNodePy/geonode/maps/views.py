@@ -915,7 +915,30 @@ def register_external_service(request):
                     return HttpResponse(json.dumps(return_dict), 
                                         mimetype='application/json',
                                         status=200)        
-                elif type == 'WFS' or type == 'WCS':
+                elif type == 'WFS':
+                    # Register the Service with GeoServer to be cascaded
+                    cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
+                                    _user , _password)
+                    # Can we always assume that it is geonode?
+                    geonode_ws = cat.get_workspace("geonode")
+                    wfs_ds = cat.create_datastore(name)
+                    connection_params = {
+                        "WFSDataStoreFactory:MAXFEATURES": "0",
+                        "WFSDataStoreFactory:TRY_GZIP": "true",
+                        "WFSDataStoreFactory:PROTOCOL": "false",
+                        "WFSDataStoreFactory:LENIENT": "true",
+                        "WFSDataStoreFactory:TIMEOUT": "3000",
+                        "WFSDataStoreFactory:BUFFER_SIZE": "10",
+                        "WFSDataStoreFactory:ENCODING": "UTF-8",
+                        "WFSDataStoreFactory:WFS_STRATEGY": "nonstrict",
+                        "WFSDataStoreFactory:GET_CAPABILITIES_URL": base_url,
+                    }
+                    wfs_ds.connection_parameters = connection_params
+                    cat.save(wfs_ds)
+                    available_resources = wfs_ds.get_resources(available=True)
+                    print available_resources
+                    return HttpResponse('Working on it', status=200)
+                elif type == 'WCS':
                     return HttpResponse('Not Implemented (Yet)', status=501)
                 else:
                     return HttpResponse(
