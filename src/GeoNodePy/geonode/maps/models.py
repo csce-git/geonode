@@ -616,7 +616,7 @@ class LayerManager(models.Manager):
                 store = resource.store
                 workspace = store.workspace
                 status = self.save_layer_from_geoserver(workspace, store, resource)
-            except Exception e:
+            except Exception, e: 
                 if ignore_errors:
                     status = 'failed'
                     exception_type, error, traceback = sys.exc_info()
