@@ -241,8 +241,14 @@ def newmap_config(request):
                 if not request.user.has_perm('maps.view_layer', obj=layer):
                     # invisible layer, skip inclusion
                     continue
-                    
-                layer_bbox = layer.resource.latlon_bbox
+                
+                if layer.storeType == 'remoteStore':
+                    gbbx = layer.geographic_bounding_box
+                    layer_bbox = gbbx.replace('(', '').replace(')', '').split(',')
+                    ows_url = layer.service.base_url
+                else:
+                    layer_bbox = layer.resource.latlon_bbox
+                    ows_url = settings.GEOSERVER_BASE_URL + "wms"
                 # assert False, str(layer_bbox)
                 if bbox is None:
                     bbox = list(layer_bbox[0:4])
@@ -255,7 +261,7 @@ def newmap_config(request):
                 layers.append(MapLayer(
                     map = map,
                     name = layer.typename,
-                    ows_url = settings.GEOSERVER_BASE_URL + "wms",
+                    ows_url = ows_url,
                     visibility = True
                 ))
 
@@ -843,7 +849,10 @@ def layerController(request, layername):
         
         metadata = layer.metadata_csw()
 
-        maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
+        if layer.storeType == 'remoteStore':
+            maplayer = MapLayer(name = layer.typename, ows_url = layer.service.base_url)
+        else:
+            maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
 
         # center/zoom don't matter; the viewer will center on the layer bounds
         map = Map(projection="EPSG:900913")
@@ -877,7 +886,8 @@ def register_external_service(request):
                 password = None
 
             # First Check if this service already exists based on the URL
-            base_url = url.split('?')[0]
+            #base_url = url.split('?')[0] # This wont work with mapserver instances
+            base_url = url
             try:
                 service = Service.objects.get(base_url=base_url)
             except Service.DoesNotExist:
@@ -989,6 +999,9 @@ def register_external_service(request):
             else:
                 return HttpResponse('Invalid method', status=400)
         except:
+            print '-'*60
+            traceback.print_exc(file=sys.stdout)
+            print '-'*60
             print "Unexpected error:", sys.exc_info()
             return HttpResponse('Unexpected Error', status=500)
 
