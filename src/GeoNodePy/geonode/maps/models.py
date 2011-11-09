@@ -617,7 +617,7 @@ class LayerManager(models.Manager):
                 store = resource.store
                 workspace = store.workspace
                 status = self.save_layer_from_geoserver(workspace, store, resource)
-            except Exception, e:
+            except Exception, e: 
                 if ignore_errors:
                     status = 'failed'
                     exception_type, error, traceback = sys.exc_info()
@@ -638,7 +638,7 @@ class LayerManager(models.Manager):
                 print >> console, msg
 
         # Doing a logout since we know we don't need this object anymore.
-        gn.logout()
+        self.geonetwork.logout()
 
         return output
 
@@ -680,6 +680,7 @@ class LayerManager(models.Manager):
                     layer.date_type = Layer.VALID_DATE_TYPES[0]
 
             layer.save()
+
             if created: 
                 layer.set_default_permissions()
                 status = 'created'
