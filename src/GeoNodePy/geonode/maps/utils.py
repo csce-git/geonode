@@ -4,7 +4,7 @@ import re
 from django.db import transaction
 from django.utils.translation import ugettext as _
 from django.contrib.auth.models import User
-from geonode.maps.models import Map, Layer, MapLayer, Contact, ContactRole, Role, get_csw
+from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole, Role, get_csw
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, get_sld_for, delete_from_postgis
 import geoserver
 from geoserver.catalog import FailedRequestError
@@ -355,21 +355,27 @@ def save(layer, base_file, user, overwrite = True, title=None, abstract=None, pe
         cat.save(publishing)
 
     # Step 10. Create the Django record for the layer
+    service, created = Service.objects.get_or_create(type = 'OWS', method='L',
+                                            base_url = settings.GEOSERVER_BASE_URL + "ows",
+                                            name = settings.SITENAME)
+
     logger.info('>>> Step 10. Creating Django record for [%s]', name)
     # FIXME: Do this inside the layer object
     typename = gs_resource.store.workspace.name + ':' + gs_resource.name
     layer_uuid = str(uuid.uuid1())
-    saved_layer, created = Layer.objects.get_or_create(name=gs_resource.name, defaults=dict(
-                                 store=gs_resource.store.name,
-                                 storeType=gs_resource.store.resource_type,
-                                 typename=typename,
-                                 workspace=gs_resource.store.workspace.name,
-                                 title=title or gs_resource.title,
-                                 uuid=layer_uuid,
-                                 keywords=' '.join(keywords),
-                                 abstract=abstract or gs_resource.abstract or '',
-                                 owner=user,
-                                 )
+    saved_layer, created = Layer.objects.get_or_create(name=gs_resource.name, 
+                            defaults=dict(
+                                service = service,
+                                store=gs_resource.store.name,
+                                storeType=gs_resource.store.resource_type,
+                                typename=typename,
+                                workspace=gs_resource.store.workspace.name,
+                                title=title or gs_resource.title,
+                                uuid=layer_uuid,
+                                keywords=' '.join(keywords),
+                                abstract=abstract or gs_resource.abstract or '',
+                                owner=user,
+                            )
     )
 
     if created:
