@@ -1479,8 +1479,6 @@ def metadata_search(request):
     # grab params directly to implement defaults as
     # opposed to panicy django forms behavior.
     query = params.get('q', '')
-    searchObj = search_history(search_keyword=query, search_date=datetime.datetime.now())
-    searchObj.save()
     try:
         start = int(params.get('start', '0'))
     except:
@@ -1503,6 +1501,8 @@ def metadata_search(request):
             pass
 
     result = _metadata_search(query, start, limit, **advanced)
+    searchObj = search_history(search_keyword=query, search_date=datetime.datetime.now(), search_returned=len(result['rows']))
+    searchObj.save()
 
     # XXX slowdown here to dig out result permissions
     for doc in result['rows']: 

@@ -1788,6 +1788,8 @@ def post_save_layer(instance, sender, **kwargs):
 class search_history(models.Model):
     search_keyword = models.CharField(max_length=100, db_column='search_keyword')
     search_date = models.DateTimeField(db_column='search_date')
+    search_returned = models.PositiveIntegerField(db_column='search_returned');
+    
     class Meta:
         db_table = u'search_history'
 
