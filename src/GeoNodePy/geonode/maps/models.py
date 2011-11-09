@@ -637,7 +637,7 @@ class LayerManager(models.Manager):
                 print >> console, msg
 
         # Doing a logout since we know we don't need this object anymore.
-        gn.logout()
+        self.geonetwork.logout()
 
         return output
 
