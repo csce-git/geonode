@@ -715,6 +715,7 @@ SERVICE_TYPES = (
 SERVICE_METHODS = (
     ('L', 'Local'),
     ('C', 'Cascaded'),
+    ('H', 'Harvested'),
     ('I', 'Indexed'),
     ('X', 'Live'),
 )
@@ -749,6 +750,8 @@ class Service(models.Model, PermissionLevelMixin):
     last_updated = models.DateTimeField(auto_now=True)
     first_noanswer = models.DateTimeField(null=True, blank=True)
     noanswer_retries = models.PositiveIntegerField(null=True, blank=True)
+    uuid = models.CharField(max_length=36, null=True, blank=True)
+    external_id = models.IntegerField(null=True, blank=True)
 	
     # Supported Capabilities
     
