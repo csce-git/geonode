@@ -1039,7 +1039,26 @@ def register_external_layer(request):
         try:
             service_id = request.POST.get("service_id")
             layer_list = request.POST.get("layer_list")
-            layers = layer_list.split(',') 
+            layers = layer_list.split(',')
+            anonymous = request.POST.get("anonymous")
+            authenticated = request.POST.get("authenticated")
+            post_users = request.POST.get("users")
+            users = []
+            request_user_grant = False
+            if post_users is not None: 
+                users = []
+                perms = post_users.split(',')
+                for perm in perms:
+                    user, grant = perm.split(':')
+                    if request.user.username == user:
+                        request_user_grant = True
+                    users.append([user, grant])
+            if request_user_grant == False:
+                print "granting request user because unspecified"
+                users.append([request.user, "layer_admin"])
+            perm_spec = {'anonymous': anonymous, 
+                            'authenticated':authenticated, 
+                            'users': users}
             try:
                 service = Service.objects.get(pk = int(service_id))
             except Service.DoesNotExist:
@@ -1059,15 +1078,15 @@ def register_external_layer(request):
                     store = cat.get_store(service.name,geonode_ws)
                     count = 0
                     for layer in layers: 
-                        print layer
                         lyr = cat.get_resource(layer)
                         if(lyr == None):
                             if service.type == "WMS":
                                 resource = cat.create_wmslayer(geonode_ws, store, layer) 
                             elif service.type == "WFS":
                                 resource = cat.create_wfslayer(geonode_ws, store, layer) 
-                            Layer.objects.save_layer_from_geoserver(geonode_ws, 
+                            new_layer, status = Layer.objects.save_layer_from_geoserver(geonode_ws, 
                                                                     store, resource)
+                            set_layer_permissions(new_layer, perm_spec)
                             count += 1
                     message = "%d Layers Registered" % count
                     return_dict = {'status': 'ok', 'msg': message }
@@ -1083,7 +1102,6 @@ def register_external_layer(request):
                     wms = WebMapService(service.base_url)
                     count = 0
                     for layer in layers:
-                        print layer 
                         wms_layer = wms[layer]
                         layer_uuid = str(uuid.uuid1())
                         if wms_layer.keywords:
