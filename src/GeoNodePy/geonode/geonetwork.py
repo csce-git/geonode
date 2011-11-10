@@ -8,8 +8,6 @@ from owslib.util import nspath
 from xml.dom import minidom
 from xml.etree.ElementTree import XML
 
-
-
 class Catalog(object):
 
     def __init__(self, base, user, password):
@@ -158,7 +156,35 @@ class Catalog(object):
         response = self.urlopen(request)
 
         # TODO: check for error report  
-        
+    
+    def add_harvesting_task(self, type, name, url):
+        """
+        Configure a GeoNetwork harvesting task using the harvesting services
+        """
+        self.login()
+        harvesting_url = self.base + "srv/en/xml.harvesting.add"
+        # TODO Handle for various types of harvesting tasks
+        tpl = get_template('geonetwork/add_csw_harvesting_task.xml')
+        ctx = Context({
+            'name': name,
+            'url': url,
+        })
+        doc = tpl.render(ctx)
+        headers = {
+            "Content-Type": "application/xml; charset=UTF-8",
+            "Accept": "test/plain"
+        }
+        doc = doc.encode("utf-8")
+        request = urllib2.Request(harvesting_url, doc, headers)
+        response = self.urlopen(request)
+        response_xml = XML(response.read())
+        # TODO Check For errors
+        # TODO Set Permissions
+        # TODO Set Task to Start/run
+        id = response_xml.get('id')
+        uuid = response_xml.find('site/uuid').text
+        return id, uuid 
+    
     def _get_group_ids(self):
         """
         helper to fetch the set of geonetwork 
