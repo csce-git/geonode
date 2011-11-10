@@ -645,13 +645,24 @@ class LayerManager(models.Manager):
         cat = self.gs_catalog
         gn = self.gn_catalog
         if store.resource_type == "wmsStore":
-            service, created = Service.objects.get_or_create(type = 'WMS', method = 'C',
-                                                base_url = store.capabilitiesURL.split('?')[0],
-                                                name = store.name)      
+            type = "WMS"
+            method = "C"
+            base_url = store.capabilitiesURL
+            name = store.name
+        elif store.type == "Web Feature Server":
+            type = "WFS"
+            method = "C"
+            base_url = store.connection_parameters['WFSDataStoreFactory:GET_CAPABILITIES_URL'] 
+            name = store.name
         else:
-            service, created = Service.objects.get_or_create(type = 'OWS', method='L',
-                                                base_url = settings.GEOSERVER_BASE_URL + "ows",
-                                                name = settings.SITENAME)
+            type = "OWS"
+            method = "L"
+            base_url = settings.GEOSERVER_BASE_URL + "ows" 
+            name = settings.SITENAME
+        
+        service, created = Service.objects.get_or_create(type = type, method=method,
+                                                base_url = base_url,
+                                                name = name)
         try:
             layer, created = self.get_or_create(name=resource.name, defaults = {
                 "service": service,
