@@ -615,7 +615,7 @@ class LayerManager(models.Manager):
                 name = resource.name
                 store = resource.store
                 workspace = store.workspace
-                status = self.save_layer_from_geoserver(workspace, store, resource)
+                new_layer, status = self.save_layer_from_geoserver(workspace, store, resource)
             except Exception, e: 
                 if ignore_errors:
                     status = 'failed'
@@ -685,7 +685,7 @@ class LayerManager(models.Manager):
                 status = 'created'
             else:
                 status = 'updated'
-            return status
+            return layer, status
         finally:
             pass
 
