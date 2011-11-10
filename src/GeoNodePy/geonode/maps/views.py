@@ -1002,12 +1002,36 @@ def register_external_service(request):
                     return HttpResponse('Not Implemented (Yet)', status=501)
                 elif type == 'WCS':
                     return HttpResponse('Not Implemented (Yet)', status=501)
-                elif type == 'CSW':
-                    return HttpResponse('Not Implemented (Yet)', status=501)
                 else:
                     return HttpResponse(
                         'Invalid Method / Type combo: ' + 
-                        'Only Indexed WMS, WFS, WCS and CSW supported',
+                        'Only Indexed WMS, WFS and WCS supported',
+                        mimetype="text/plain",
+                        status=400
+                    )
+            elif method == 'H':
+                if type == 'CSW':
+                    gn = Layer.objects.gn_catalog
+                    id, uuid = gn.add_harvesting_task('CSW', name, base_url) 
+                    service = Service(type = type,
+                                        method=method,
+                                        base_url = base_url,
+                                        name = name,
+                                        owner=request.user,
+                                        uuid = uuid,
+                                        external_id = id)
+                    service.save()
+                    message = "Service %s registered" % service.name
+                    return_dict = {'status': 'ok', 'msg': message,
+                                    'id': service.pk,
+                                    'available_layers': []}
+                    return HttpResponse(json.dumps(return_dict),
+                                        mimetype='application/json',
+                                        status=200)
+                else:
+                    return HttpResponse(
+                        'Invalid Method / Type combo: ' + 
+                        'Only Harvested CSW supported',
                         mimetype="text/plain",
                         status=400
                     )
