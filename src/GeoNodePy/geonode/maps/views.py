@@ -943,6 +943,10 @@ def register_external_service(request):
                         "WFSDataStoreFactory:WFS_STRATEGY": "nonstrict",
                         "WFSDataStoreFactory:GET_CAPABILITIES_URL": base_url,
                     }
+                    if user and password:
+                        connection_params["WFSDataStoreFactory:USERNAME"] = user
+                        connection_params["WFSDataStoreFactory:PASSWORD"] = password
+
                     wfs_ds.connection_parameters = connection_params
                     cat.save(wfs_ds)
                     available_resources = wfs_ds.get_resources(available=True)
