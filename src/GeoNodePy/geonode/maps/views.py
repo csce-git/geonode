@@ -1086,6 +1086,8 @@ def register_external_layer(request):
                                 resource = cat.create_wfslayer(geonode_ws, store, layer) 
                             new_layer, status = Layer.objects.save_layer_from_geoserver(geonode_ws, 
                                                                     store, resource)
+                            new_layer.owner = request.user
+                            new_layer.save()
                             set_layer_permissions(new_layer, perm_spec)
                             count += 1
                     message = "%d Layers Registered" % count
