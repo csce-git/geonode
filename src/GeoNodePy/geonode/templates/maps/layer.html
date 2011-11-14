@@ -215,7 +215,9 @@
 
 {% if layer.geographic_bounding_box %}<p> <strong>{% trans "Bounding Box" %}:</strong> {{ layer.geographic_bounding_box }} </p>{% endif %}
 {% if not layer.storeType == "remoteStore" %}
+{% comment %}
 {% if layer.metadata.crsOptions %}<p> <strong>{% trans "Native SRS" %}:</strong> {{ layer.metadata.crsOptions.0|default:_("No SRS specified.") }} </p>{% endif %}
+{% endcomment %}
 {% endif %}
 
 {% if request.user.is_authenticated %}
