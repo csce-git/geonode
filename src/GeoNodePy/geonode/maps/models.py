@@ -762,6 +762,9 @@ class Service(models.Model, PermissionLevelMixin):
         """Return a list of all the child layers (resources) for this Service"""
         pass 
 
+    def get_absolute_url(self):
+        return '/services/%i' % self.id
+        
 class Layer(models.Model, PermissionLevelMixin):
     """
     Layer Object loosely based on ISO 19115:2003

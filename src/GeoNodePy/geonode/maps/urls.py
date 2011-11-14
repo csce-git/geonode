@@ -40,3 +40,8 @@ datapatterns = patterns('geonode.maps.views',
   url(r'^(?P<layername>[^/]*)/style$', 'layer_style', name="layer_style"),
   (r'^(?P<layername>[^/]*)/ajax-permissions$', 'ajax_layer_permissions'),
 )
+
+servicepatterns = patterns('geonode.maps.views',
+    (r'^(?P<service_id>\d+)$', 'service_controller'),
+    url(r'^(?P<service_id>\d+)/ajax-permissions$', 'ajax_service_permissions', name='ajax_service_permissions'),
+)

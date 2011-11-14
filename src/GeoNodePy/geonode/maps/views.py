@@ -2005,3 +2005,61 @@ def batch_delete(request):
     nmaps = len(spec.get('maps', []))
 
     return HttpResponse("Deleted %d layers and %d maps" % (nlayers, nmaps))
+
+def service_controller(request, service_id):
+    '''
+    main view for service resources, dispatches to correct 
+    view based on method and query args. 
+    '''
+    if 'remove' in request.GET: 
+        return delete_service(request, service_id)
+    if 'edit' in request.GET:
+        return edit_service(request, service_id)
+    else:
+        return service_detail(request, service_id)
+
+def service_detail(request, service_id):
+    '''
+    This view shows the details of a service 
+    '''
+    service = get_object_or_404(Service,pk=service_id)
+    """
+    if not request.user.has_perm('maps.view_service', obj=map):
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
+                _("You are not allowed to view this Service.")})), status=401)
+    """
+    layers = Layer.objects.filter(service=service) 
+    return render_to_response("maps/service_info.html", RequestContext(request, {
+        'service': service,
+        'layers': layers,
+    }))
+
+@login_required
+def delete_service(request, service_id):
+    ''' Delete a service, and its constituent layers. '''
+    """
+    service = get_object_or_404(Service,pk=service_id) 
+
+    if not request.user.has_perm('maps.delete_service', obj=service):
+        return HttpResponse(loader.render_to_string('401.html', 
+            RequestContext(request, {'error_message': 
+                _("You are not permitted to delete this service.")})), status=401)
+
+    if request.method == 'GET':
+        return render_to_response("maps/service_remove.html", RequestContext(request, {
+            "service": service
+        }))
+    elif request.method == 'POST':
+        layers = service.layer_set.all()
+        for layers in layers:
+            layer.delete()
+        service.delete()
+
+        return HttpResponseRedirect(reverse("geonode.maps.views.services"))
+    """
+
+def ajax_service_permissions(request, service_id):    
+    pass
+
+
