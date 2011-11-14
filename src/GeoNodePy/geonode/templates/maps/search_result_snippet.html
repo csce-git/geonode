@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load geonode_auth %}
+
  
 <p><b>{% trans "Abstract:" %}</b>
 {% if rec.identification.abstract %}
@@ -70,5 +71,7 @@
     {% endif %}
   {% else %}
     <p>{% trans "You do not have permission to view or download this layer" %}</p>
+    <p><a href="layer/payment/{{layer.id}}"> Buy </a></p>
+    
   {% endif %}
 {% endif %}

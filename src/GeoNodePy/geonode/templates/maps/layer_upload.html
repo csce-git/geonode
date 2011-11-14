@@ -126,6 +126,9 @@ Ext.onReady(function(){
         name: "permissions"
     });
 
+
+    
+    
     var fp = new Ext.FormPanel({
         renderTo: 'upload_form',
         fileUpload: true,
@@ -146,6 +149,10 @@ Ext.onReady(function(){
         buttons: [{
             text: gettext('Upload'),
             handler: function(){
+            	
+            	var console = window.console;
+            	console.log(permissionsField.getValue());
+            	    
                 if (fp.getForm().isValid()) {
                     fp.getForm().submit({
                         url: form_target,
@@ -206,7 +213,7 @@ Ext.onReady(function(){
         userLookup: "{% url geonode.views.ajax_lookup %}",
         listeners: {
             updated: function(pe) {
-                permissionsField.setValue(Ext.util.JSON.encode(pe.writePermissions()));
+                permissionsField.setValue(Ext.util.JSON.encode(pe.writePermissions()));                
             }
         },
         permissions: {

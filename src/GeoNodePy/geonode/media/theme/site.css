@@ -745,6 +745,12 @@ cursor: pointer;
     margin: 4px;
 }
 
+.period_item button {
+    width: 16px;
+    height: 16px;
+    margin: 4px;
+}
+
 .x-list-body dl { margin: 0; }
 
 .langbar {
