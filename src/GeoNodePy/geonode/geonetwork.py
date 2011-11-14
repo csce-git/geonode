@@ -6,7 +6,7 @@ from django.template.loader import get_template
 from owslib.csw import CatalogueServiceWeb, namespaces
 from owslib.util import nspath
 from xml.dom import minidom
-from xml.etree.ElementTree import XML
+from xml.etree.ElementTree import Element, SubElement, XML, tostring 
 
 class Catalog(object):
 
@@ -164,10 +164,12 @@ class Catalog(object):
         self.login()
         harvesting_url = self.base + "srv/en/xml.harvesting.add"
         # TODO Handle for various types of harvesting tasks
+        groups = self._get_group_ids()
         tpl = get_template('geonetwork/add_csw_harvesting_task.xml')
         ctx = Context({
             'name': name,
             'url': url,
+            'groups': groups,
         })
         doc = tpl.render(ctx)
         headers = {
@@ -178,13 +180,39 @@ class Catalog(object):
         request = urllib2.Request(harvesting_url, doc, headers)
         response = self.urlopen(request)
         response_xml = XML(response.read())
-        # TODO Check For errors
-        # TODO Set Permissions
-        # TODO Set Task to Start/run
-        id = response_xml.get('id')
+        id = int(response_xml.get('id'))
         uuid = response_xml.find('site/uuid').text
-        return id, uuid 
-    
+        # TODO Check For errors
+        self.control_harvesting_task('start', [id])
+        self.control_harvesting_task('run', [id])
+        return id, uuid
+   
+    def control_harvesting_task(self, action, ids):
+        """
+        Start/Stop/Run an existing harvesting task
+        """
+        self.login()
+        harvesting_url = "%ssrv/en/xml.harvesting.%s" % (self.base, action) 
+        request_xml = Element("request")
+        for id in ids:
+            id_element = SubElement(request_xml, "id")
+            id_element.text = str(id)
+        doc = tostring(request_xml)
+        headers = {
+            "Content-Type": "application/xml; charset=UTF-8",
+            "Accept": "test/plain"
+        }
+        doc = doc.encode("utf-8")
+        request = urllib2.Request(harvesting_url, doc, headers)
+        response = self.urlopen(request)
+        response_xml = XML(response.read())
+        #TODO Check for errors
+        status_reports = response_xml.findall('id')
+        status_return = {}
+        for status in status_reports:
+            status_return[status.text] = status.get('status')
+        return status_return 
+ 
     def _get_group_ids(self):
         """
         helper to fetch the set of geonetwork 
