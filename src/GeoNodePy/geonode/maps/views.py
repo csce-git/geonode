@@ -1011,11 +1011,9 @@ def register_external_service(request):
             else:
                 return HttpResponse('Invalid method', status=400)
         except:
-            print '-'*60
-            traceback.print_exc(file=sys.stdout)
-            print '-'*60
-            print "Unexpected error:", sys.exc_info()
-            return HttpResponse('Unexpected Error', status=500)
+            msg = "Unexpected Error %s" % str(sys.exc_info())
+            logger.exception(msg)
+            return HttpResponse(msg, status=500)
 
     elif request.method == 'PUT':
         # Update a previously registered Service
@@ -1054,7 +1052,6 @@ def register_external_layer(request):
                     store = cat.get_store(service.name,geonode_ws)
                     count = 0
                     for layer in layers: 
-                        print layer
                         lyr = cat.get_resource(layer)
                         if(lyr == None):
                             if service.type == "WMS":
@@ -1078,7 +1075,6 @@ def register_external_layer(request):
                     wms = WebMapService(service.base_url)
                     count = 0
                     for layer in layers:
-                        print layer 
                         wms_layer = wms[layer]
                         layer_uuid = str(uuid.uuid1())
                         if wms_layer.keywords:
@@ -1117,9 +1113,8 @@ def register_external_layer(request):
             else:
                 return HttpResponse('Invalid Service Type', status=400)
         except:
-            print '-'*60
-            traceback.print_exc(file=sys.stdout)
-            print '-'*60 
+            msg = "Unexpected Error %s" % str(sys.exc_info())
+            logger.exception(msg)
             return HttpResponse('Unexpected Error', status=501)
     elif request.method == 'PUT':
         return HttpResponse('Not Implemented (Yet)', status=501)
@@ -1610,8 +1605,8 @@ def _extract_links(rec, xml):
     format_re = re.compile(".*\((.*)(\s*Format*\s*)\).*?")
 
     for link in xml.findall("*//" + nspath("onLine", namespaces['gmd'])):
-        dl_type_path = link.find(dl_type_path)
-        if dl_type_path and dl_type_path.text == "WWW:DOWNLOAD-1.0-http--download":
+        dl_type = link.find(dl_type_path)
+        if dl_type and dl_type.text == "WWW:DOWNLOAD-1.0-http--download":
             extension = link.find(dl_name_path).text.split('.')[-1]
             format = format_re.match(link.find(dl_description_path).text).groups()[0]
             url = link.find(dl_link_path).text
