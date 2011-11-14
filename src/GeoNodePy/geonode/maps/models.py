@@ -647,7 +647,7 @@ class LayerManager(models.Manager):
         gn = self.gn_catalog
         if store.resource_type == "wmsStore":
             service, created = Service.objects.get_or_create(type = 'WMS', method = 'C',
-                                                base_url = store.capabilitiesURL.split('?')[0],
+                                                base_url = store.capabilitiesURL,
                                                 name = store.name)      
         else:
             service, created = Service.objects.get_or_create(type = 'OWS', method='L',
@@ -1208,7 +1208,8 @@ class Layer(models.Model, PermissionLevelMixin):
         meta = self.metadata_csw()
         if meta is None:
             return
-        self.keywords = ' '.join([word for word in meta.identification.keywords['list'] if isinstance(word,str)])
+        #self.keywords = ' '.join([word for word in meta.identification.keywords['list'] if isinstance(word,str)])
+        self.keywords = ''
         if hasattr(meta.distribution, 'online'):
             onlineresources = [r for r in meta.distribution.online if r.protocol == "WWW:LINK-1.0-http--link"]
             if len(onlineresources) == 1:
