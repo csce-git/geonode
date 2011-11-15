@@ -132,12 +132,17 @@ def cascading_delete(cat, resource):
     resource_name = resource.name
     lyr = cat.get_layer(resource_name)
     if(lyr is not None): #Already deleted
-        store = resource.store
+        # Delete Styles
         styles = lyr.styles + [lyr.default_style]
         cat.delete(lyr)
         for s in styles:
             if s is not None:
                 cat.delete(s, purge=True)
+        try:
+            store = resource.store
+        except FailedRequestError, e:
+            # Store Already Deleted?
+            return
         cat.delete(resource)
         if store.resource_type == 'dataStore' and 'dbtype' in store.connection_parameters and store.connection_parameters['dbtype'] == 'postgis':
             cat.delete(store)

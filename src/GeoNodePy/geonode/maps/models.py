@@ -617,7 +617,7 @@ class LayerManager(models.Manager):
                 store = resource.store
                 workspace = store.workspace
                 status = self.save_layer_from_geoserver(workspace, store, resource)
-            except Exception, e:
+            except Exception, e: 
                 if ignore_errors:
                     status = 'failed'
                     exception_type, error, traceback = sys.exc_info()
@@ -638,7 +638,7 @@ class LayerManager(models.Manager):
                 print >> console, msg
 
         # Doing a logout since we know we don't need this object anymore.
-        gn.logout()
+        self.geonetwork.logout()
 
         return output
 
@@ -647,7 +647,7 @@ class LayerManager(models.Manager):
         gn = self.gn_catalog
         if store.resource_type == "wmsStore":
             service, created = Service.objects.get_or_create(type = 'WMS', method = 'C',
-                                                base_url = store.capabilitiesURL.split('?')[0],
+                                                base_url = store.capabilitiesURL,
                                                 name = store.name)      
         else:
             service, created = Service.objects.get_or_create(type = 'OWS', method='L',
@@ -680,6 +680,7 @@ class LayerManager(models.Manager):
                     layer.date_type = Layer.VALID_DATE_TYPES[0]
 
             layer.save()
+
             if created: 
                 layer.set_default_permissions()
                 status = 'created'
@@ -1207,12 +1208,8 @@ class Layer(models.Model, PermissionLevelMixin):
         meta = self.metadata_csw()
         if meta is None:
             return
-        kw_list = reduce(
-                lambda x, y: x + y["keywords"],
-                meta.identification.keywords,
-                [])
-        kw_list = filter(lambda x: x is not None, kw_list)
-        self.keywords = ' '.join(kw_list)
+        #self.keywords = ' '.join([word for word in meta.identification.keywords['list'] if isinstance(word,str)])
+        self.keywords = ''
         if hasattr(meta.distribution, 'online'):
             onlineresources = [r for r in meta.distribution.online if r.protocol == "WWW:LINK-1.0-http--link"]
             if len(onlineresources) == 1:
@@ -1255,6 +1252,7 @@ class Layer(models.Model, PermissionLevelMixin):
     LEVEL_ADMIN = 'layer_admin'
                  
     def set_default_permissions(self):
+        # shen default permission
         self.set_gen_level(ANONYMOUS_USERS, self.LEVEL_READ)
         self.set_gen_level(AUTHENTICATED_USERS, self.LEVEL_READ) 
 
@@ -1791,6 +1789,8 @@ def post_save_layer(instance, sender, **kwargs):
 class search_history(models.Model):
     search_keyword = models.CharField(max_length=100, db_column='search_keyword')
     search_date = models.DateTimeField(db_column='search_date')
+    search_returned = models.PositiveIntegerField(db_column='search_returned');
+    
     class Meta:
         db_table = u'search_history'
 
