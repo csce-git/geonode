@@ -135,6 +135,12 @@ LAYER_LEV_NAMES = {
     Layer.LEVEL_WRITE : _('Read/Write'),
     Layer.LEVEL_ADMIN : _('Administrative')
 }
+SERVICE_LEV_NAMES = {
+    Service.LEVEL_NONE  : _('No Permissions'),
+    Service.LEVEL_READ  : _('Read Only'),
+    Service.LEVEL_WRITE : _('Read/Write'),
+    Service.LEVEL_ADMIN : _('Administrative')
+}
 
 @transaction.commit_manually
 def maps(request, mapid=None):
@@ -2027,6 +2033,7 @@ def service_detail(request, service_id):
     return render_to_response("maps/service_detail.html", RequestContext(request, {
         'service': service,
         'layers': layers,
+        'permissions_json': json.dumps(_perms_info(service, SERVICE_LEV_NAMES))
     }))
 
 @login_required

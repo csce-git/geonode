@@ -765,6 +765,33 @@ class Service(models.Model, PermissionLevelMixin):
     def get_absolute_url(self):
         return '/services/%i' % self.id
         
+    class Meta:
+        # custom permissions, 
+        # change and delete are standard in django
+        permissions = (('view_service', 'Can view'), 
+                       ('change_service_permissions', "Can change permissions"), )
+
+    # Permission Level Constants
+    # LEVEL_NONE inherited
+    LEVEL_READ  = 'service_readonly'
+    LEVEL_WRITE = 'service_readwrite'
+    LEVEL_ADMIN = 'service_admin'
+    
+    def set_default_permissions(self):
+        self.set_gen_level(ANONYMOUS_USERS, self.LEVEL_READ)
+        self.set_gen_level(AUTHENTICATED_USERS, self.LEVEL_READ)
+
+        # remove specific user permissions
+        current_perms =  self.get_all_level_info()
+        for username in current_perms['users'].keys():
+            user = User.objects.get(username=username)
+            self.set_user_level(user, self.LEVEL_NONE)
+
+        # assign owner admin privs
+        if self.owner:
+            self.set_user_level(self.owner, self.LEVEL_ADMIN)    
+
+
 class Layer(models.Model, PermissionLevelMixin):
     """
     Layer Object loosely based on ISO 19115:2003
