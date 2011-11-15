@@ -12,18 +12,6 @@ var app;
 Ext.onReady(function() {
 {% has_obj_perm user service "service.change_service_permissions" as can_change_permissions %}
 {% autoescape off %}
-    var config = Ext.apply({
-        useToolbar: false,
-        proxy: "/proxy/?url=",
-        rest: "/services/",
-
-        // tell the map viewer where and how to be rendered
-        portalConfig: {
-            height: 300,
-            renderTo: "embedded_map"
-        }
-    }, {{ config }});
-    app = new GeoExplorer.Viewer(config);
 {% if can_change_permissions %}
     new GeoNode.PermissionsEditor({
         levels: {
@@ -84,7 +72,7 @@ Ext.onReady(function() {
   {% has_obj_perm user service "service.change_service_permissions" as can_change_permissions %}
   {% if can_change_permissions %}
   <h3>{% trans "Permissions" %}</h3>
-    <p>{% trans "Select what kind of privileges to allow." %}</p>
+    <p>{% trans "Select what kind of privileges to allow for this service." %}</p>
     <div id="permissions_form"></div>
   {% endif %}
 </div>
