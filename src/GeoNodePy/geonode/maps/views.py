@@ -2012,18 +2012,6 @@ def batch_delete(request):
 
     return HttpResponse("Deleted %d layers and %d maps" % (nlayers, nmaps))
 
-def service_controller(request, service_id):
-    '''
-    main view for service resources, dispatches to correct 
-    view based on method and query args. 
-    '''
-    if 'remove' in request.GET: 
-        return delete_service(request, service_id)
-    if 'edit' in request.GET:
-        return edit_service(request, service_id)
-    else:
-        return service_detail(request, service_id)
-
 def service_detail(request, service_id):
     '''
     This view shows the details of a service 
@@ -2036,14 +2024,24 @@ def service_detail(request, service_id):
                 _("You are not allowed to view this Service.")})), status=401)
     """
     layers = Layer.objects.filter(service=service) 
-    return render_to_response("maps/service_info.html", RequestContext(request, {
+    return render_to_response("maps/service_detail.html", RequestContext(request, {
         'service': service,
         'layers': layers,
     }))
 
 @login_required
+def edit_service(request, service_id):
+    """
+    Edit an existing Service
+    Redirects to Service Detail temporarily
+    """
+    return HttpResponseRedirect(reverse("service_detail", args=[service_id]))
+
+@login_required
 def delete_service(request, service_id):
-    ''' Delete a service, and its constituent layers. '''
+    '''
+    Delete a service, and its constituent layers. 
+    '''
     """
     service = get_object_or_404(Service,pk=service_id) 
 
@@ -2064,7 +2062,7 @@ def delete_service(request, service_id):
 
         return HttpResponseRedirect(reverse("geonode.maps.views.services"))
     """
-    return HttpResponseRedirect(reverse("geonode.maps.views.service_controller", args=[service_id]))
+    return HttpResponseRedirect(reverse("service_detail", args=[service_id]))
     
 
 def ajax_service_permissions(request, service_id):    

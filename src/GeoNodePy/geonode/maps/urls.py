@@ -42,6 +42,8 @@ datapatterns = patterns('geonode.maps.views',
 )
 
 servicepatterns = patterns('geonode.maps.views',
-    (r'^(?P<service_id>\d+)$', 'service_controller'),
+    url(r'^(?P<service_id>\d+)/$', 'service_detail', name='service_detail'),
+    url(r'^(?P<service_id>\d+)/edit$', 'edit_service', name='edit_service'),
+    url(r'^(?P<service_id>\d+)/delete$', 'delete_service', name='delete_service'),
     url(r'^(?P<service_id>\d+)/ajax-permissions$', 'ajax_service_permissions', name='ajax_service_permissions'),
 )
