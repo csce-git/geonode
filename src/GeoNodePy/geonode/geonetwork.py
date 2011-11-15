@@ -212,6 +212,24 @@ class Catalog(object):
         for status in status_reports:
             status_return[status.text] = status.get('status')
         return status_return 
+
+    def get_uuids_for_source(self, source):
+        """
+        Get the UUIDs for a particular source (based on uuid usually)
+        This is *horrendously inefficient* to get all and filter,
+        But, there doesnt seem to be a way to filter by the source
+        http://geonetwork-opensource.org/manuals/trunk/developer/xml_services/metadata_xml_services.html
+        """
+        self.login()
+        search_url = "%ssrv/en/xml.search" % (self.base)
+        request = urllib2.Request(search_url)
+        response = self.urlopen(request)
+        doc = XML(response.read())
+        uuids = []
+        for record in doc.findall('metadata/{http://www.fao.org/geonetwork}info'):
+            if record.find('source').text == source:
+                uuids.append(record.find('uuid').text)
+        return uuids 
  
     def _get_group_ids(self):
         """
