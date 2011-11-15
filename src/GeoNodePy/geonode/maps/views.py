@@ -2064,6 +2064,8 @@ def delete_service(request, service_id):
 
         return HttpResponseRedirect(reverse("geonode.maps.views.services"))
     """
+    return HttpResponseRedirect(reverse("geonode.maps.views.service_controller", args=[service_id]))
+    
 
 def ajax_service_permissions(request, service_id):    
     pass
