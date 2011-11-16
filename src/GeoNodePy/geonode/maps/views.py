@@ -910,7 +910,7 @@ def register_external_service(request):
             except Service.DoesNotExist:
                 service = None
             if service is not None:
-                return_dict['msg'] = "This is an existing service using this name.\nPlease specify a different name." 
+                return_dict = {'msg': "This is an existing service using this name.\nPlease specify a different name."}
                 return HttpResponse(json.dumps(return_dict), 
                                     mimetype='application/json',
                                     status=400)
@@ -1197,10 +1197,6 @@ def register_external_layer(request):
     else:
         return HttpResponse('Invalid Request', status = 400)
         
-@login_required
-def unconfigured_external_layers(request, service_id):
-    pass
-
 GENERIC_UPLOAD_ERROR = _("There was an error while attempting to upload your data. \
 Please try again, or contact and administrator if the problem continues.")
 
@@ -2088,6 +2084,38 @@ def delete_service(request, service_id):
     """
     return HttpResponseRedirect(reverse("service_detail", args=[service_id]))
     
+@login_required
+def service_layers(request, service_id):
+    """
+    Return the layers for a service.
+    For now it *only* returns unconfigured layers for WMS/WFS serivces
+    TODO: Take a ?list=availble ?list=all ?list=configured
+    """
+    service = get_object_or_404(Service,pk=service_id)
+    if service.owner != request.user:
+        return HttpResponse(json.dumps({'msg': 'You are not permitted to configure this service'}), 
+                             mimetype='application/json',
+                             status=400)
+    else:
+        if service.type == 'WMS' or service.type == 'WFS':
+            cat = Layer.objects.gs_catalog
+            store = cat.get_store(service.name)
+            if store:
+                available_resources = store.get_resources(available=True)
+                return_dict = { 'id': service.pk,
+                                'available_layers': available_resources}
+                return HttpResponse(json.dumps(return_dict), 
+                                    mimetype='application/json',
+                                    status=200)        
+            else:
+                return HttpResponse(json.dumps({'msg': 'Store for Service Not Found'}), 
+                                 mimetype='application/json',
+                                 status=400)
+        else:
+            return HttpResponse(json.dumps({'msg': 'Method not valid for this service type'}), 
+                                 mimetype='application/json',
+                                 status=400)
 
+@login_required
 def ajax_service_permissions(request, service_id):    
     pass
