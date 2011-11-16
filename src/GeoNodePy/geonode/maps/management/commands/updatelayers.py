@@ -18,7 +18,12 @@ class Command(BaseCommand):
         ignore_errors = options.get('ignore_errors')
         verbosity = options.get('verbosity')
         start = datetime.datetime.now()
-        output = Layer.objects.slurp(ignore_errors, verbosity)
+        # First Layers from GeoServer into GeoNode
+        gs_output = Layer.objects.gs_slurp(ignore_errors, verbosity)
+        # Next Layers from GeoNode into GeoNode
+        gn_output = Layer.objects.gn_guzzle(ignore_errors, verbosity)
+        # Concatenate the dictionaries together
+        output = gs_output + gn_output
         updated = [dict_['name'] for dict_ in output if dict_['status']=='updated']
         created = [dict_['name'] for dict_ in output if dict_['status']=='created']
         failed = [dict_['name'] for dict_ in output if dict_['status']=='failed']
