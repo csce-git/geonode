@@ -1896,6 +1896,9 @@ def delete_layer(instance, sender, **kwargs):
     """
     Removes the layer from GeoServer and GeoNetwork
     """
+    if instance.storeType == 'cswRecord':
+        return
+
     if instance.storeType != 'remoteStore':
         instance.delete_from_geoserver()
 
@@ -1917,5 +1920,12 @@ def post_save_layer(instance, sender, **kwargs):
         instance._populate_from_gn()
         instance.save(force_update=True)
 
+def pre_delete_service(instance, sender, **kwargs):
+    if instance.method == 'H':
+        gn = Layer.objects.gn_catalog
+        gn.control_harvesting_task('stop', [instance.external_id]) 
+        gn.control_harvesting_task('remove', [instance.external_id]) 
+
 signals.pre_delete.connect(delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
+signals.pre_delete.connect(pre_delete_service, sender=Service)
