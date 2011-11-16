@@ -185,13 +185,13 @@
 
 {% if layer.supplemental_information %}
 <p> <strong>{% trans "Supplemental Information" %}:</strong> 
-    {{ layer.supplemental_information }}
+    {{ layer.supplemental_information|linebreaks }}
 </p>
 {% endif %}
 
 {% if layer.data_quality_statement %}
 <p> <strong>{% trans "Data Quality Statement" %}:</strong> 
-    {{ layer.data_quality_statement }}
+    {{ layer.data_quality_statement|linebreaks }}
 </p>
 {% endif %}
 
@@ -205,6 +205,12 @@
 
 {% block sidebar %}
 <div id="sidebar" class="threecol">
+    {% if layer.storeType == 'cswRecord' %}
+    <h3> {% trans "External Links" %} </h3>
+    {% if layer.distribution_url %}
+    <a href='{{ layer.distribution_url }}' target='_blank'>{{layer.distribution_url }}</a>
+    {% endif %}
+    {% endif %}
     {% if not layer.storeType == 'cswRecord' %}
     <h3> {% trans "Download" %} </h3>
     <p> <strong>{% trans "Data" %}: </strong>
