@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 from django.conf import settings
 from django.db import models
+from django.template.defaultfilters import slugify
 from owslib.wms import WebMapService
 from owslib.csw import CatalogueServiceWeb
 from geoserver.catalog import Catalog
@@ -595,7 +596,7 @@ class LayerManager(models.Manager):
     def default_metadata_author(self):
         return self.admin_contact()
 
-    def slurp(self, ignore_errors=True, verbosity=1, console=sys.stdout):
+    def gs_slurp(self, ignore_errors=True, verbosity=1, console=sys.stdout):
         """Configure the layers available in GeoServer in GeoNode.
 
            It returns a list of dictionaries with the name of the layer,
@@ -616,6 +617,8 @@ class LayerManager(models.Manager):
                 store = resource.store
                 workspace = store.workspace
                 new_layer, status = self.save_layer_from_geoserver(workspace, store, resource)
+            except (KeyboardInterrupt, SystemExit): 
+                raise
             except Exception, e: 
                 if ignore_errors:
                     status = 'failed'
@@ -640,6 +643,55 @@ class LayerManager(models.Manager):
         self.geonetwork.logout()
 
         return output
+
+    def gn_guzzle(self, ignore_errors=True, verbosity=1, console=sys.stdout):
+        """
+        Configure layers/resources harvested into GeoNetwork in GeoNode
+        """
+        if verbosity > 1:
+            print >> console, "Inspecting the configured Harvesting Services ..." 
+        # Only Harvested CSW for now ...
+        services = Service.objects.filter(method='H', type='CSW')
+        num_services = len(services)
+        if verbosity > 1:
+            msg =  "Found %d services, starting processing" % num_services 
+            print >> console, msg
+        output = []
+        if(_csw is None):
+            get_csw()
+        for i, service in enumerate(services):
+            uuids = self.geonetwork.get_uuids_for_source(service.uuid)
+            number = len(uuids)
+            for j, uuid in enumerate(uuids): 
+                name = uuid
+                try:
+                    _csw.getrecordbyid(id=[uuid])
+                    csw_layer = _csw.records.get(uuid) 
+                    name = csw_layer.title
+                    new_layer, status = self.save_layer_from_geonetwork(service, uuid, csw_layer)
+                except (KeyboardInterrupt, SystemExit): 
+                    raise
+                except Exception, e:
+                    if ignore_errors:
+                        status = 'failed'
+                        exception_type, error, traceback = sys.exc_info()
+                    else:
+                        if verbosity > 0:
+                            msg = "Stopping process because --strict=True and an error was found."
+                            print >> sys.stderr, msg
+                        raise Exception('Failed to process resource with UUID %s' % name, e), None, sys.exc_info()[2]
+
+                msg = "[%s] Layer %s (%d/%d %d/%d)" % (status, name, i, num_services, j, number)
+                info = {'name': name, 'status': status}
+                if status == 'failed':
+                    info['traceback'] = traceback
+                    info['exception_type'] = exception_type
+                    info['error'] = error
+                output.append(info)
+                if verbosity > 0:
+                    print >> console, msg
+        return output
+
 
     def save_layer_from_geoserver(self, workspace, store, resource):
         cat = self.gs_catalog
@@ -699,6 +751,35 @@ class LayerManager(models.Manager):
             return layer, status
         finally:
             pass
+
+    def save_layer_from_geonetwork(self, service, uuid, csw_record):
+        print csw_record.__dict__
+        workspace = "geonode"# Is it safe to hardcode this? 
+        try:
+            layer, created = self.get_or_create(uuid=uuid, defaults = {
+                "service": service,
+                "workspace": workspace, 
+                "store": "geonetwork",
+                "storeType": "cswRecord",
+                "typename": "%s:%s" % (workspace, slugify(csw_record.title).replace('-','_')),
+                "title": csw_record.title or 'No title provided',
+                "abstract": csw_record.abstract or 'No abstract provided',
+                "owner": service.owner,
+            })
+            layer.owner = service.owner
+            layer.abstract = csw_record.abstract or 'No Abstract provided'
+            # TODO Check all items in from __dict__
+            layer.save()
+            
+            if created:
+                layer.set_default_permissions()
+                status = 'created'
+            else:
+                status = 'updated'
+            return layer, status
+        finally: 
+           pass
+            
 
 SERVICE_TYPES = (
 	('OWS', 'Paired WMS/WFS/WCS'),
@@ -1819,14 +1900,16 @@ def delete_layer(instance, sender, **kwargs):
     instance.delete_from_geonetwork()
 
 def post_save_layer(instance, sender, **kwargs):
+    # TODO Need to think through how this works for various scenarios
     instance._autopopulate()
-    if instance.storeType != 'remoteStore':
+    if instance.storeType != 'remoteStore' and instance.storeType != 'cswRecord':
         instance.save_to_geoserver()
 
         if kwargs['created']:
             instance._populate_from_gs()
-   
-    instance.save_to_geonetwork()
+  
+    if instance.storeType != 'cswRecord': 
+        instance.save_to_geonetwork()
 
     if kwargs['created']:
         instance._populate_from_gn()
