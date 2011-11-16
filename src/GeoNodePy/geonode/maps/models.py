@@ -753,7 +753,6 @@ class LayerManager(models.Manager):
             pass
 
     def save_layer_from_geonetwork(self, service, uuid, csw_record):
-        print csw_record.__dict__
         workspace = "geonode"# Is it safe to hardcode this? 
         try:
             layer, created = self.get_or_create(uuid=uuid, defaults = {
@@ -768,6 +767,9 @@ class LayerManager(models.Manager):
             })
             layer.owner = service.owner
             layer.abstract = csw_record.abstract or 'No Abstract provided'
+            layer.name = csw_record.title
+            layer.supplemental_information = csw_record.source or "" # Temporary? 
+            layer.distribution_url = csw_record.uri
             # TODO Check all items in from __dict__
             layer.save()
             
