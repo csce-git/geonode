@@ -34,7 +34,7 @@ from django.views.decorators.csrf import csrf_exempt, csrf_response_exempt
 from django.forms.models import inlineformset_factory
 from django.db.models import Q
 import logging
-import sys, traceback
+import sys
 
 
 logger = logging.getLogger("geonode.maps.views")
@@ -1059,10 +1059,7 @@ def register_external_service(request):
             else:
                 return HttpResponse('Invalid method', status=400)
         except:
-            print '-'*60
-            traceback.print_exc(file=sys.stdout)
-            print '-'*60
-            print "Unexpected error:", sys.exc_info()
+            logger.error("Unexpected Error", exc_info=1) 
             return HttpResponse('Unexpected Error', status=500)
 
     elif request.method == 'PUT':
@@ -1098,7 +1095,7 @@ def register_external_layer(request):
                             request_user_grant = True
                         users.append([user, grant])
                 if request_user_grant == False:
-                    print "granting request user because unspecified"
+                    logger.info("granting request user because unspecified")
                     users.append([request.user, "layer_admin"])
                 perm_spec = {'anonymous': anonymous, 
                                 'authenticated':authenticated, 
@@ -1191,9 +1188,7 @@ def register_external_layer(request):
             else:
                 return HttpResponse('Invalid Service Type', status=400)
         except:
-            print '-'*60
-            traceback.print_exc(file=sys.stdout)
-            print '-'*60 
+            logger.error("Unexpected Error", exc_info=1) 
             return HttpResponse('Unexpected Error', status=501)
     elif request.method == 'PUT':
         return HttpResponse('Not Implemented (Yet)', status=501)
