@@ -30,6 +30,9 @@
 <script type="text/javascript">
 Ext.onReady(function() {
     var mapsAndLayers = [];
+    {% for service in profile.user.service_set.all %}
+    mapsAndLayers.push(["service.{{ service.pk|escapejs }}", "{{ service.pk|escapejs }}", "service", "{{ service.get_absolute_url|escapejs }}", "{{ service.name|escapejs }}", "{{ service.created|escapejs }}"]);
+    {% endfor %}
     {% for lyr in profile.user.layer_set.all %}
     mapsAndLayers.push(["lyr.{{ lyr.pk|escapejs }}", "{{ lyr.pk|escapejs }}", "layer", "{{ lyr.get_absolute_url|escapejs }}", "{{ lyr.title|escapejs }}", "{{ lyr.date|escapejs }}"]);
     {% endfor %}
@@ -110,7 +113,7 @@ Ext.onReady(function() {
     });
 
     function serialize() {
-        var list = { layers: [], maps: [] };
+        var list = { services: [], layers: [], maps: [] };
         var selection = assetView.getSelectionModel().getSelections();
 
         for (var i = 0; i < selection.length; i++) {
@@ -120,6 +123,8 @@ Ext.onReady(function() {
 
             if (type === "layer") {
                 list.layers.push(id);
+            } else if (type === "service") {
+                list.services.push(id);
             } else if (type === "map") {
                 list.maps.push(id);
             }

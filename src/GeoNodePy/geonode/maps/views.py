@@ -135,6 +135,12 @@ LAYER_LEV_NAMES = {
     Layer.LEVEL_WRITE : _('Read/Write'),
     Layer.LEVEL_ADMIN : _('Administrative')
 }
+SERVICE_LEV_NAMES = {
+    Service.LEVEL_NONE  : _('No Permissions'),
+    Service.LEVEL_READ  : _('Read Only'),
+    Service.LEVEL_WRITE : _('Read/Write'),
+    Service.LEVEL_ADMIN : _('Administrative')
+}
 
 @transaction.commit_manually
 def maps(request, mapid=None):
@@ -715,7 +721,8 @@ class LayerDescriptionForm(forms.Form):
 
 @csrf_exempt
 @login_required
-def _describe_layer(request, layer):
+def layer_metadata(request, layername):
+    layer = get_object_or_404(Layer, typename=layername)
     if request.user.is_authenticated():
         if not request.user.has_perm('maps.change_layer', obj=layer):
             return HttpResponse(loader.render_to_string('401.html', 
@@ -777,7 +784,8 @@ def _describe_layer(request, layer):
         return HttpResponse("Not allowed", status=403)
 
 @csrf_exempt
-def _removeLayer(request,layer):
+def layer_remove(request, layername):
+    layer = get_object_or_404(Layer, typename=layername)
     if request.user.is_authenticated():
         if not request.user.has_perm('maps.delete_layer', obj=layer):
             return HttpResponse(loader.render_to_string('401.html', 
@@ -797,7 +805,8 @@ def _removeLayer(request,layer):
         return HttpResponse("Not allowed",status=403)
 
 @csrf_exempt
-def _changeLayerDefaultStyle(request,layer):
+def layer_style(request, layername):
+    layer = get_object_or_404(Layer, typename=layername)
     if request.user.is_authenticated():
         if not request.user.has_perm('maps.change_layer', obj=layer):
             return HttpResponse(loader.render_to_string('401.html', 
@@ -830,40 +839,32 @@ def _changeLayerDefaultStyle(request,layer):
     else:  
         return HttpResponse("Not allowed",status=403)
 
-def layerController(request, layername):
-    DEFAULT_MAP_CONFIG, DEFAULT_BASE_LAYERS = default_map_config()
+@csrf_exempt
+def layer_detail(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
-    if (request.META['QUERY_STRING'] == "describe"):
-        return _describe_layer(request,layer)
-    if (request.META['QUERY_STRING'] == "remove"):
-        return _removeLayer(request,layer)
-    if (request.META['QUERY_STRING'] == "update"):
-        return _updateLayer(request,layer)
-    if (request.META['QUERY_STRING'] == "style"):
-        return _changeLayerDefaultStyle(request,layer)
-    else: 
-        if not request.user.has_perm('maps.view_layer', obj=layer):
-            return HttpResponse(loader.render_to_string('401.html', 
-                RequestContext(request, {'error_message': 
-                    _("You are not permitted to view this layer")})), status=401)
-        
-        metadata = layer.metadata_csw()
+    if not request.user.has_perm('maps.view_layer', obj=layer):
+        return HttpResponse(loader.render_to_string('401.html', 
+            RequestContext(request, {'error_message': 
+                _("You are not permitted to view this layer")})), status=401)
+    
+    metadata = layer.metadata_csw()
 
-        if layer.storeType == 'remoteStore':
-            maplayer = MapLayer(name = layer.typename, ows_url = layer.service.base_url)
-        else:
-            maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
+    if layer.storeType == 'remoteStore':
+        maplayer = MapLayer(name = layer.typename, ows_url = layer.service.base_url)
+    else:
+        maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
 
-        # center/zoom don't matter; the viewer will center on the layer bounds
-        map = Map(projection="EPSG:900913")
+    # center/zoom don't matter; the viewer will center on the layer bounds
+    map = Map(projection="EPSG:900913")
+    DEFAULT_BASE_LAYERS = default_map_config()[1]
 
-        return render_to_response('maps/layer.html', { 
-            "layer": layer,
-            "metadata": metadata,
-            "viewer": json.dumps(map.viewer_json(* (DEFAULT_BASE_LAYERS + [maplayer]))),
-            "permissions_json": _perms_info_json(layer, LAYER_LEV_NAMES),
-            "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL
-	    }, context_instance=RequestContext(request))
+    return render_to_response('maps/layer.html', RequestContext(request, {
+        "layer": layer,
+        "metadata": metadata,
+        "viewer": json.dumps(map.viewer_json(* (DEFAULT_BASE_LAYERS + [maplayer]))),
+        "permissions_json": _perms_info_json(layer, LAYER_LEV_NAMES),
+        "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL
+    }))
 
 @login_required
 def register_external_service(request):
@@ -886,16 +887,35 @@ def register_external_service(request):
                 password = None
 
             # First Check if this service already exists based on the URL
-            #base_url = url.split('?')[0] # This wont work with mapserver instances
             base_url = url
             try:
                 service = Service.objects.get(base_url=base_url)
             except Service.DoesNotExist:
                 service = None
             if service is not None:
-                return HttpResponse('Service already Exists',status=400)
-            # Probably need to enforce the name being unique too
-            
+                return_dict = {}
+                if service.owner == request.user:
+                    return_dict['service_id'] = service.pk
+                    return_dict['msg'] = "This is an existing Service" 
+                    return HttpResponse(json.dumps(return_dict), 
+                                        mimetype='application/json',
+                                        status=200)        
+                else:
+                    return_dict['msg'] = "A Service already Exists for this URL, and you are not the owner" 
+                    return HttpResponse(json.dumps(return_dict), 
+                                        mimetype='application/json',
+                                        status=400)
+            # Then Check that the name is Unique
+            try:
+                service = Service.objects.get(name=name)
+            except Service.DoesNotExist:
+                service = None
+            if service is not None:
+                return_dict = {'msg': "This is an existing service using this name.\nPlease specify a different name."}
+                return HttpResponse(json.dumps(return_dict), 
+                                    mimetype='application/json',
+                                    status=400)
+
             if method == 'L':
                     return HttpResponse('Not Implemented (Yet)', status=501)
             elif method == 'C':
@@ -943,6 +963,10 @@ def register_external_service(request):
                         "WFSDataStoreFactory:WFS_STRATEGY": "nonstrict",
                         "WFSDataStoreFactory:GET_CAPABILITIES_URL": base_url,
                     }
+                    if user and password:
+                        connection_params["WFSDataStoreFactory:USERNAME"] = user
+                        connection_params["WFSDataStoreFactory:PASSWORD"] = password
+
                     wfs_ds.connection_parameters = connection_params
                     cat.save(wfs_ds)
                     available_resources = wfs_ds.get_resources(available=True)
@@ -998,12 +1022,36 @@ def register_external_service(request):
                     return HttpResponse('Not Implemented (Yet)', status=501)
                 elif type == 'WCS':
                     return HttpResponse('Not Implemented (Yet)', status=501)
-                elif type == 'CSW':
-                    return HttpResponse('Not Implemented (Yet)', status=501)
                 else:
                     return HttpResponse(
                         'Invalid Method / Type combo: ' + 
-                        'Only Indexed WMS, WFS, WCS and CSW supported',
+                        'Only Indexed WMS, WFS and WCS supported',
+                        mimetype="text/plain",
+                        status=400
+                    )
+            elif method == 'H':
+                if type == 'CSW':
+                    gn = Layer.objects.gn_catalog
+                    id, uuid = gn.add_harvesting_task('CSW', name, base_url) 
+                    service = Service(type = type,
+                                        method=method,
+                                        base_url = base_url,
+                                        name = name,
+                                        owner=request.user,
+                                        uuid = uuid,
+                                        external_id = id)
+                    service.save()
+                    message = "Service %s registered" % service.name
+                    return_dict = {'status': 'ok', 'msg': message,
+                                    'id': service.pk,
+                                    'available_layers': []}
+                    return HttpResponse(json.dumps(return_dict),
+                                        mimetype='application/json',
+                                        status=200)
+                else:
+                    return HttpResponse(
+                        'Invalid Method / Type combo: ' + 
+                        'Only Harvested CSW supported',
                         mimetype="text/plain",
                         status=400
                     )
@@ -1033,7 +1081,29 @@ def register_external_layer(request):
         try:
             service_id = request.POST.get("service_id")
             layer_list = request.POST.get("layer_list")
-            layers = layer_list.split(',') 
+            layers = layer_list.split(',')
+            if request.POST.get("anonymous") and request.POST.get("authenticated") and request.POST.get("users"):
+                anonymous = request.POST.get("anonymous")
+                authenticated = request.POST.get("authenticated")
+                post_users = request.POST.get("users")
+                users = []
+                request_user_grant = False
+                if post_users is not None: 
+                    users = []
+                    perms = post_users.split(',')
+                    for perm in perms:
+                        user, grant = perm.split(':')
+                        if request.user.username == user:
+                            request_user_grant = True
+                        users.append([user, grant])
+                if request_user_grant == False:
+                    logger.info("granting request user because unspecified")
+                    users.append([request.user, "layer_admin"])
+                perm_spec = {'anonymous': anonymous, 
+                                'authenticated':authenticated, 
+                                'users': users}
+            else:
+               perm_spec = None 
             try:
                 service = Service.objects.get(pk = int(service_id))
             except Service.DoesNotExist:
@@ -1059,8 +1129,14 @@ def register_external_layer(request):
                                 resource = cat.create_wmslayer(geonode_ws, store, layer) 
                             elif service.type == "WFS":
                                 resource = cat.create_wfslayer(geonode_ws, store, layer) 
-                            Layer.objects.save_layer_from_geoserver(geonode_ws, 
+                            new_layer, status = Layer.objects.save_layer_from_geoserver(geonode_ws, 
                                                                     store, resource)
+                            new_layer.owner = request.user
+                            new_layer.save()
+                            if perm_spec:
+                                set_layer_permissions(new_layer, perm_spec)
+                            else:
+                                pass # Will be assigned default perms
                             count += 1
                     message = "%d Layers Registered" % count
                     return_dict = {'status': 'ok', 'msg': message }
@@ -1124,7 +1200,6 @@ def register_external_layer(request):
     else:
         return HttpResponse('Invalid Request', status = 400)
         
-
 GENERIC_UPLOAD_ERROR = _("There was an error while attempting to upload your data. \
 Please try again, or contact and administrator if the problem continues.")
 
@@ -1171,12 +1246,12 @@ def upload_layer(request):
 
 @login_required
 @csrf_exempt
-def _updateLayer(request, layer):
+def layer_replace(request, layername):
+    layer = get_object_or_404(Layer, typename=layername)
     if not request.user.has_perm('maps.change_layer', obj=layer):
         return HttpResponse(loader.render_to_string('401.html', 
             RequestContext(request, {'error_message': 
                 _("You are not permitted to modify this layer")})), status=401)
-    
     if request.method == 'GET':
         cat = Layer.objects.gs_catalog
         info = cat.get_resource(layer.name)
@@ -1963,3 +2038,92 @@ def batch_delete(request):
     nmaps = len(spec.get('maps', []))
 
     return HttpResponse("Deleted %d layers and %d maps" % (nlayers, nmaps))
+
+def service_detail(request, service_id):
+    '''
+    This view shows the details of a service 
+    '''
+    service = get_object_or_404(Service,pk=service_id)
+    """
+    if not request.user.has_perm('maps.view_service', obj=map):
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
+                _("You are not allowed to view this Service.")})), status=401)
+    """
+    layers = Layer.objects.filter(service=service) 
+    return render_to_response("maps/service_detail.html", RequestContext(request, {
+        'service': service,
+        'layers': layers,
+        'permissions_json': json.dumps(_perms_info(service, SERVICE_LEV_NAMES))
+    }))
+
+@login_required
+def edit_service(request, service_id):
+    """
+    Edit an existing Service
+    Redirects to Service Detail temporarily
+    """
+    return HttpResponseRedirect(reverse("service_detail", args=[service_id]))
+
+@login_required
+def delete_service(request, service_id):
+    '''
+    Delete a service, and its constituent layers. 
+    '''
+    """
+    service = get_object_or_404(Service,pk=service_id) 
+
+    if not request.user.has_perm('maps.delete_service', obj=service):
+        return HttpResponse(loader.render_to_string('401.html', 
+            RequestContext(request, {'error_message': 
+                _("You are not permitted to delete this service.")})), status=401)
+
+    if request.method == 'GET':
+        return render_to_response("maps/service_remove.html", RequestContext(request, {
+            "service": service
+        }))
+    elif request.method == 'POST':
+        layers = service.layer_set.all()
+        for layers in layers:
+            layer.delete()
+        service.delete()
+
+        return HttpResponseRedirect(reverse("geonode.maps.views.services"))
+    """
+    return HttpResponseRedirect(reverse("service_detail", args=[service_id]))
+    
+@login_required
+def service_layers(request, service_id):
+    """
+    Return the layers for a service.
+    For now it *only* returns unconfigured layers for WMS/WFS serivces
+    TODO: Take a ?list=availble ?list=all ?list=configured
+    """
+    service = get_object_or_404(Service,pk=service_id)
+    if service.owner != request.user:
+        return HttpResponse(json.dumps({'msg': 'You are not permitted to configure this service'}), 
+                             mimetype='application/json',
+                             status=400)
+    else:
+        if service.type == 'WMS' or service.type == 'WFS':
+            cat = Layer.objects.gs_catalog
+            store = cat.get_store(service.name)
+            if store:
+                available_resources = store.get_resources(available=True)
+                return_dict = { 'id': service.pk,
+                                'available_layers': available_resources}
+                return HttpResponse(json.dumps(return_dict), 
+                                    mimetype='application/json',
+                                    status=200)        
+            else:
+                return HttpResponse(json.dumps({'msg': 'Store for Service Not Found'}), 
+                                 mimetype='application/json',
+                                 status=400)
+        else:
+            return HttpResponse(json.dumps({'msg': 'Method not valid for this service type'}), 
+                                 mimetype='application/json',
+                                 status=400)
+
+@login_required
+def ajax_service_permissions(request, service_id):    
+    pass

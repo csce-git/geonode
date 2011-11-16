@@ -616,7 +616,7 @@ class LayerManager(models.Manager):
                 name = resource.name
                 store = resource.store
                 workspace = store.workspace
-                status = self.save_layer_from_geoserver(workspace, store, resource)
+                new_layer, status = self.save_layer_from_geoserver(workspace, store, resource)
             except Exception, e: 
                 if ignore_errors:
                     status = 'failed'
@@ -646,13 +646,24 @@ class LayerManager(models.Manager):
         cat = self.gs_catalog
         gn = self.gn_catalog
         if store.resource_type == "wmsStore":
-            service, created = Service.objects.get_or_create(type = 'WMS', method = 'C',
-                                                base_url = store.capabilitiesURL,
-                                                name = store.name)      
+            type = "WMS"
+            method = "C"
+            base_url = store.capabilitiesURL
+            name = store.name
+        elif store.type == "Web Feature Server":
+            type = "WFS"
+            method = "C"
+            base_url = store.connection_parameters['WFSDataStoreFactory:GET_CAPABILITIES_URL'] 
+            name = store.name
         else:
-            service, created = Service.objects.get_or_create(type = 'OWS', method='L',
-                                                base_url = settings.GEOSERVER_BASE_URL + "ows",
-                                                name = settings.SITENAME)
+            type = "OWS"
+            method = "L"
+            base_url = settings.GEOSERVER_BASE_URL + "ows" 
+            name = settings.SITENAME
+        
+        service, created = Service.objects.get_or_create(type = type, method=method,
+                                                base_url = base_url,
+                                                name = name)
         try:
             layer, created = self.get_or_create(name=resource.name, defaults = {
                 "service": service,
@@ -686,7 +697,7 @@ class LayerManager(models.Manager):
                 status = 'created'
             else:
                 status = 'updated'
-            return status
+            return layer, status
         finally:
             pass
 
@@ -705,6 +716,7 @@ SERVICE_TYPES = (
 SERVICE_METHODS = (
     ('L', 'Local'),
     ('C', 'Cascaded'),
+    ('H', 'Harvested'),
     ('I', 'Indexed'),
     ('X', 'Live'),
 )
@@ -739,6 +751,8 @@ class Service(models.Model, PermissionLevelMixin):
     last_updated = models.DateTimeField(auto_now=True)
     first_noanswer = models.DateTimeField(null=True, blank=True)
     noanswer_retries = models.PositiveIntegerField(null=True, blank=True)
+    uuid = models.CharField(max_length=36, null=True, blank=True)
+    external_id = models.IntegerField(null=True, blank=True)
 	
     # Supported Capabilities
     
@@ -748,6 +762,36 @@ class Service(models.Model, PermissionLevelMixin):
     def layers(self):
         """Return a list of all the child layers (resources) for this Service"""
         pass 
+
+    def get_absolute_url(self):
+        return '/services/%i' % self.id
+        
+    class Meta:
+        # custom permissions, 
+        # change and delete are standard in django
+        permissions = (('view_service', 'Can view'), 
+                       ('change_service_permissions', "Can change permissions"), )
+
+    # Permission Level Constants
+    # LEVEL_NONE inherited
+    LEVEL_READ  = 'service_readonly'
+    LEVEL_WRITE = 'service_readwrite'
+    LEVEL_ADMIN = 'service_admin'
+    
+    def set_default_permissions(self):
+        self.set_gen_level(ANONYMOUS_USERS, self.LEVEL_READ)
+        self.set_gen_level(AUTHENTICATED_USERS, self.LEVEL_READ)
+
+        # remove specific user permissions
+        current_perms =  self.get_all_level_info()
+        for username in current_perms['users'].keys():
+            user = User.objects.get(username=username)
+            self.set_user_level(user, self.LEVEL_NONE)
+
+        # assign owner admin privs
+        if self.owner:
+            self.set_user_level(self.owner, self.LEVEL_ADMIN)    
+
 
 class Layer(models.Model, PermissionLevelMixin):
     """
