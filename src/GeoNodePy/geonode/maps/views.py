@@ -1573,6 +1573,8 @@ def metadata_search(request):
     for doc in result['rows']: 
         try: 
             layer = Layer.objects.get(uuid=doc['uuid'])
+            if layer.storeType == "cswRecord":
+                doc['detail'] = "%s%s" % (settings.SITEURL[:-1], layer.get_absolute_url())
             doc['_local'] = True
             doc['_permissions'] = {
                 'view': request.user.has_perm('maps.view_layer', obj=layer),
