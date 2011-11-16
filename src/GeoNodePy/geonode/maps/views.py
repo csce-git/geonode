@@ -886,16 +886,35 @@ def register_external_service(request):
                 password = None
 
             # First Check if this service already exists based on the URL
-            #base_url = url.split('?')[0] # This wont work with mapserver instances
             base_url = url
             try:
                 service = Service.objects.get(base_url=base_url)
             except Service.DoesNotExist:
                 service = None
             if service is not None:
-                return HttpResponse('Service already Exists',status=400)
-            # Probably need to enforce the name being unique too
-            
+                return_dict = {}
+                if service.owner == request.user:
+                    return_dict['service_id'] = service.pk
+                    return_dict['msg'] = "This is an existing Service" 
+                    return HttpResponse(json.dumps(return_dict), 
+                                        mimetype='application/json',
+                                        status=200)        
+                else:
+                    return_dict['msg'] = "A Service already Exists for this URL, and you are not the owner" 
+                    return HttpResponse(json.dumps(return_dict), 
+                                        mimetype='application/json',
+                                        status=400)
+            # Then Check that the name is Unique
+            try:
+                service = Service.objects.get(name=name)
+            except Service.DoesNotExist:
+                service = None
+            if service is not None:
+                return_dict['msg'] = "This is an existing service using this name.\nPlease specify a different name." 
+                return HttpResponse(json.dumps(return_dict), 
+                                    mimetype='application/json',
+                                    status=400)
+
             if method == 'L':
                     return HttpResponse('Not Implemented (Yet)', status=501)
             elif method == 'C':
@@ -1183,6 +1202,9 @@ def register_external_layer(request):
     else:
         return HttpResponse('Invalid Request', status = 400)
         
+@login_required
+def unconfigured_external_layers(request, service_id):
+    pass
 
 GENERIC_UPLOAD_ERROR = _("There was an error while attempting to upload your data. \
 Please try again, or contact and administrator if the problem continues.")
