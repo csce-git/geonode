@@ -1892,7 +1892,7 @@ class ContactRole(models.Model):
     class Meta:
         unique_together = (("contact", "layer", "role"),)
 
-def delete_layer(instance, sender, **kwargs): 
+def pre_delete_layer(instance, sender, **kwargs): 
     """
     Removes the layer from GeoServer and GeoNetwork
     """
@@ -1926,6 +1926,6 @@ def pre_delete_service(instance, sender, **kwargs):
         gn.control_harvesting_task('stop', [instance.external_id]) 
         gn.control_harvesting_task('remove', [instance.external_id]) 
 
-signals.pre_delete.connect(delete_layer, sender=Layer)
+signals.pre_delete.connect(pre_delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
 signals.pre_delete.connect(pre_delete_service, sender=Service)
