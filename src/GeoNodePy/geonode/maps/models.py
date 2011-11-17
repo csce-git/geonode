@@ -1925,10 +1925,6 @@ def pre_delete_service(instance, sender, **kwargs):
         gn = Layer.objects.gn_catalog
         gn.control_harvesting_task('stop', [instance.external_id]) 
         gn.control_harvesting_task('remove', [instance.external_id]) 
-    if instance.method == 'C':
-        layers = Layer.objects.filter(service=instance)
-        for layer in layers:
-            layer.delete()
 
 signals.pre_delete.connect(pre_delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
