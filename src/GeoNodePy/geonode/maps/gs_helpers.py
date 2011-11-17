@@ -10,6 +10,7 @@ _foregrounds = ["#ffbbbb", "#bbffbb", "#bbbbff", "#ffffbb", "#bbffff", "#ffbbff"
 _backgrounds = ["#880000", "#008800", "#000088", "#888800", "#008888", "#880088"]
 _marks = ["square", "circle", "star", "cross", "x", "triangle"]
 _style_contexts = izip(cycle(_foregrounds), cycle(_backgrounds), cycle(_marks))
+_default_style_names = ["point", "line", "polygon", "raster"]
 
 def _add_sld_boilerplate(symbolizer):
     """
@@ -129,27 +130,38 @@ def fixup_style(cat, resource, style):
             logger.info("Successfully updated %s", lyr)
 
 def cascading_delete(cat, resource):
+    if resource is None:
+        # Already deleted 
+        return
     resource_name = resource.name
     lyr = cat.get_layer(resource_name)
     if(lyr is not None): #Already deleted
         # Delete Styles
-        styles = lyr.styles + [lyr.default_style]
+        default_style = lyr.default_style
+        if default_style:
+            styles = lyr.styles + [lyr.default_style]
+        else:
+            styles = lyr.styles
         cat.delete(lyr)
-        for s in styles:
+        for s in styles and s.name not in _default_style_names:
             if s is not None:
-                cat.delete(s, purge=True)
+                try:
+                    cat.delete(s, purge=True)
+                except FailedRequestError:
+                    # TODO Is it safe to just ignore these
+                    pass
         try:
             store = resource.store
         except FailedRequestError, e:
             # Store Already Deleted?
             return
         cat.delete(resource)
+        # FIXME: For cascaded services (and other data types) there is not a 1:1 mapping between store and resource
         if store.resource_type == 'dataStore' and 'dbtype' in store.connection_parameters and store.connection_parameters['dbtype'] == 'postgis':
             cat.delete(store)
             delete_from_postgis(resource_name)
         else:
             cat.delete(store)
-
 
 
 def delete_from_postgis(resource_name):
