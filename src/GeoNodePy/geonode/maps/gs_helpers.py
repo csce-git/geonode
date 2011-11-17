@@ -156,11 +156,10 @@ def cascading_delete(cat, resource):
             # Store Already Deleted?
             return
         cat.delete(resource)
-        # FIXME: For cascaded services (and other data types) there is not a 1:1 mapping between store and resource
         if store.resource_type == 'dataStore' and 'dbtype' in store.connection_parameters and store.connection_parameters['dbtype'] == 'postgis':
-            cat.delete(store)
             delete_from_postgis(resource_name)
-        else:
+        # Delete the store if we have now deleted the last layer
+        if len(cat.get_resources(store)) == 0:
             cat.delete(store)
 
 
