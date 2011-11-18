@@ -4,7 +4,7 @@
  
 <p><b>{% trans "Abstract:" %}</b>
 {% if rec.identification.abstract %}
-  {{rec.identification.abstract}}
+  {{rec.identification.abstract|linebreaks}}
 {% else %}
 <em>{% trans "No abstract is provided for this layer." %}</em>
 {% endif %}

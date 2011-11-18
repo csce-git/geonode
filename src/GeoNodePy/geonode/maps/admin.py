@@ -31,6 +31,7 @@ class LayerAdmin(admin.ModelAdmin):
     filter_horizontal = ('contacts',)
     date_hierarchy = 'date'
     readonly_fields = ('uuid', 'typename', 'workspace') 
+    search_fields = ('name', 'title', 'typename')
     inlines = [ContactRoleInline]
 
     actions = ['change_poc']

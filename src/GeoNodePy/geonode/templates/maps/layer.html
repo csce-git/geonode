@@ -4,7 +4,7 @@
 {% load agon_ratings_tags %}
 {% load dialogos_tags %}
 
-{% block title %} {{ layer.resource.title|default:layer.typename }} - {{ block.super }} {% endblock %}
+{% block title %} {{ layer.title|default:layer.typename }} - {{ block.super }} {% endblock %}
 
 {% block head %}
 {% include "geonode/ext_header.html" %}
@@ -15,6 +15,7 @@
 
 {{ block.super }}
 
+{% if not layer.storeType == 'cswRecord' %}
     <script type="text/javascript">
 {% autoescape off %}
         var styleEditor, modified = false;
@@ -128,6 +129,7 @@
         }
 {% endautoescape %}
     </script>
+{% endif %}
 {% endblock %}
 
 {% block start_body_js %}
@@ -151,7 +153,7 @@
 		<g:plusone size="small" href="http://{{ request.get_host }}{{ request.get_full_path }}"></g:plusone>
 		<div class="fb-like" data-href="http://{{ request.get_host }}{{ request.get_full_path }}" data-send="false" data-width="50" data-layout="button_count" data-show-faces="false"></div>
 	</div>
-<p> <strong>{% trans "Abstract" %}:</strong> {{ layer.abstract|default:_("No abstract for this layer.") }} </p>
+<p> <strong>{% trans "Abstract" %}:</strong> {{ layer.abstract|default:_("No abstract for this layer.")|linebreaks }} </p>
 
 <div id="preview_map"></div>
 
@@ -195,27 +197,30 @@
 </p>
 {% endif %}
 
+{% if not layer.storeType == 'cswRecord' %}
 {% if layer.attribute_names %}
 <p> <strong>{% trans "Attributes" %}:</strong> 
     {{ layer.attribute_names|join:", " }}
 </p>
 {% endif %}
+{% endif %}
 
 {% if layer.supplemental_information %}
 <p> <strong>{% trans "Supplemental Information" %}:</strong> 
-    {{ layer.supplemental_information }}
+    {{ layer.supplemental_information|linebreaks }}
 </p>
 {% endif %}
 
 {% if layer.data_quality_statement %}
 <p> <strong>{% trans "Data Quality Statement" %}:</strong> 
-    {{ layer.data_quality_statement }}
+    {{ layer.data_quality_statement|linebreaks }}
 </p>
 {% endif %}
 
 {% if layer.geographic_bounding_box %}<p> <strong>{% trans "Bounding Box" %}:</strong> {{ layer.geographic_bounding_box }} </p>{% endif %}
 {% if not layer.storeType == "remoteStore" %}
 {% comment %}
+{% if not layer.storeType == "remoteStore" and not layer.storeType == "cswRecord" %}
 {% if layer.metadata.crsOptions %}<p> <strong>{% trans "Native SRS" %}:</strong> {{ layer.metadata.crsOptions.0|default:_("No SRS specified.") }} </p>{% endif %}
 {% endcomment %}
 {% endif %}
@@ -261,6 +266,13 @@
 
 {% block sidebar %}
 <div id="sidebar" class="threecol">
+    {% if layer.storeType == 'cswRecord' %}
+    <h3> {% trans "External Links" %} </h3>
+    {% if layer.distribution_url %}
+    <a href='{{ layer.distribution_url }}' target='_blank'>{{layer.distribution_url }}</a>
+    {% endif %}
+    {% endif %}
+    {% if not layer.storeType == 'cswRecord' %}
     <h3> {% trans "Download" %} </h3>
     <p> <strong>{% trans "Data" %}: </strong>
         {% for extension, type, link in layer.download_links %}
@@ -274,6 +286,7 @@
             <em> {% trans "No metadata links provided for this data." noop %} </em>
         {% endfor %}
     </p>
+    
     <h3>{% trans "Maps" %} </h3>
     {% if layer.maps %}
     <p>{% trans "The following maps use this data set" %}:
@@ -286,11 +299,12 @@
         <p> {% trans "This layer is not currently used in any maps." %} </p>
     {% endif %}
     <p><a href="{% url geonode.maps.views.newmap %}?layer={{layer.typename}}">Create new map</a></p> 
+    {% endif %}
 
     {% has_obj_perm request.user layer "maps.change_layer" as can_change %}
     {% has_obj_perm request.user layer "maps.delete_layer" as can_delete %}
 
-    {% if not layer.storeType == "remoteStore" %}
+    {% if not layer.storeType == "wmsStore" and not layer.storeType == "cswRecord" %}
     <h3> {% trans "Styles" %} </h3>
     <p> {% trans "The following styles are associated with this data set.  Choose a style to view it in the preview to the left.  Click on a style name to view or edit the style." %}
     <br/>
@@ -321,8 +335,8 @@
     </p>
 
 
-    {% if not layer.storeType == "remoteStore" %}
-    {% if request.user.is_authenticated %}
+    {% if not layer.storeType == "wmsStore" and not layer.storeType == "cswRecord" %}
+    {% if user.is_authenticated %}
     {% if can_change or can_delete or can_change_permissions %}
 
         <h3> {% trans "Manage" %} </h3>
