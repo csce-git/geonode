@@ -57,7 +57,7 @@ Ext.onReady(function() {
   <h3>{% trans "Manage" %}</h3>
   <ul>
     {% has_obj_perm user service "service.edit_service" as can_change %}
-    {% has_obj_perm user service "service.delete_service" as can_delete %}
+    {% has_obj_perm user service "service.remove_service" as can_remove %}
 
     {% if can_change %}
     <li><a href="{% url edit_service service.id %}">{% trans "Edit Service Metadata" %}</a></li>
@@ -65,8 +65,8 @@ Ext.onReady(function() {
     {% if can_change_permissions %}
     <li><a href="{% url edit_service_permissions service.id %}">{% trans "Edit Service Permissions" %}</a></li>
     {% endif %}
-    {% if can_delete %}
-    <li><a href="{% url delete_service service.id %}">{% trans "Delete Service" %}</a></li>
+    {% if can_remove %}
+    <li><a href="{% url remove_service service.id %}">{% trans "Remove Service" %}</a></li>
     {% endif %}
   </ul>
   {% has_obj_perm user service "service.change_service_permissions" as can_change_permissions %}
