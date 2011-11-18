@@ -243,7 +243,7 @@
     {% has_obj_perm user layer "maps.change_layer" as can_change %}
     {% has_obj_perm user layer "maps.delete_layer" as can_delete %}
 
-    {% if not layer.storeType == "remoteStore" and not layer.storeType == "cswRecord" %}
+    {% if not layer.storeType == "wmsStore" and not layer.storeType == "cswRecord" %}
     <h3> {% trans "Styles" %} </h3>
     <p> {% trans "The following styles are associated with this data set.  Choose a style to view it in the preview to the left.  Click on a style name to view or edit the style." %}
     <br/>
@@ -274,7 +274,7 @@
     </p>
 
 
-    {% if not layer.storeType == "remoteStore" and not layer.storeType == "cswRecord" %}
+    {% if not layer.storeType == "wmsStore" and not layer.storeType == "cswRecord" %}
     {% if user.is_authenticated %}
     {% if can_change or can_delete or can_change_permissions %}
 
