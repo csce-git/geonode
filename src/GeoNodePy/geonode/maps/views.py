@@ -2135,4 +2135,4 @@ def service_layers(request, service_id):
 
 @login_required
 def ajax_service_permissions(request, service_id):    
-    pass
+    return HttpResponse('Not Implemented (Yet)', status=501)
