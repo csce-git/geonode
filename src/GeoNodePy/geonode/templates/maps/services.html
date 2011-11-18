@@ -1,0 +1,16 @@
+{% extends "page_layout.html" %}
+{% load i18n %}
+
+{% block title %} Services -- {{ block.super }} {% endblock %}
+
+{% block main %}
+{% if services %}
+<ul>
+{% for service in services %}
+<li><a href='{% url geonode.maps.views.service_detail service.id %}'>{{ service.name }}</a></li>
+{% endfor %}
+</ul>
+{% else %}
+<h3>No services registered</h3>
+{% endif %}
+{% endblock %}
