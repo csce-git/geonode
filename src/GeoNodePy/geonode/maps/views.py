@@ -1764,9 +1764,7 @@ def register_service(request):
                                     mimetype='application/json',
                                     status=400)
 
-            if method == 'L':
-                    return HttpResponse('Local Services cannot be added via the API', status=400)
-            elif method == 'C':
+            if method == 'C':
                 if type == 'WMS':
                     # Register the Service with GeoServer to be cascaded
                     cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
@@ -1905,6 +1903,8 @@ def register_service(request):
                     )
             elif method == 'X':
                 return HttpResponse('Not Implemented (Yet)', status=501)
+            elif method == 'L':
+                return HttpResponse('Local Services not configurable via API', status=400)
             else:
                 return HttpResponse('Invalid method', status=400)
         except:
@@ -1959,9 +1959,7 @@ def register_layers(request):
                     mimetype="text/plain",
                     status=404
                 )
-            if service.method == 'L':
-                    return HttpResponse('Not Implemented (Yet)', status=501)
-            elif service.method == 'C':
+            if service.method == 'C':
                 if service.type == 'WMS' or service.type == "WFS":
                     cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
                                     _user , _password)
@@ -2034,6 +2032,8 @@ def register_layers(request):
                     return HttpResponse('Invalid Service Type', status=400)
             elif service.method == 'X':
                 return HttpResponse('Not Implemented (Yet)', status=501)
+            elif method == 'L':
+                return HttpResponse('Local Services not configurable via API', status=400)
             else:
                 return HttpResponse('Invalid Service Type', status=400)
         except:
