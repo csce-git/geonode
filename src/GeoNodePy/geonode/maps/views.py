@@ -1765,7 +1765,7 @@ def register_service(request):
                                     status=400)
 
             if method == 'L':
-                    return HttpResponse('Not Implemented (Yet)', status=501)
+                    return HttpResponse('Local Services cannot be added via the API', status=400)
             elif method == 'C':
                 if type == 'WMS':
                     # Register the Service with GeoServer to be cascaded
