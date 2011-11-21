@@ -1684,7 +1684,7 @@ class Collection(models.Model, PermissionLevelMixin):
     class Meta:
         # custom permissions, 
         # change and delete are standard in django
-        permissions = (('view_map', 'Can view'), 
+        permissions = (('view_collection', 'Can view'), 
                        ('change_collection_permissions', "Can change permissions"), )
 
     # Permission Level Constants
@@ -1736,6 +1736,11 @@ def create_user_profile(instance, sender, created, **kwargs):
         profile.name = instance.username
         profile.save()
 
+def post_save_collection(instance, sender, created, **kwargs):
+    if created:
+        instance.set_default_permissions()
+
 signals.pre_delete.connect(delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
 signals.post_save.connect(create_user_profile, sender=User)
+signals.post_save.connect(post_save_collection, sender=Collection)
