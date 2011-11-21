@@ -1770,9 +1770,7 @@ def register_service(request):
                                     mimetype='application/json',
                                     status=400)
 
-            if method == 'L':
-                    return HttpResponse('Not Implemented (Yet)', status=501)
-            elif method == 'C':
+            if method == 'C':
                 if type == 'WMS':
                     # Register the Service with GeoServer to be cascaded
                     cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
@@ -1911,6 +1909,8 @@ def register_service(request):
                     )
             elif method == 'X':
                 return HttpResponse('Not Implemented (Yet)', status=501)
+            elif method == 'L':
+                return HttpResponse('Local Services not configurable via API', status=400)
             else:
                 return HttpResponse('Invalid method', status=400)
         except:
@@ -1935,26 +1935,8 @@ def register_layers(request):
             service_id = request.POST.get("service_id")
             layer_list = request.POST.get("layer_list")
             layers = layer_list.split(',')
-            if request.POST.get("anonymous") and request.POST.get("authenticated") and request.POST.get("users"):
-                anonymous = request.POST.get("anonymous")
-                authenticated = request.POST.get("authenticated")
-                post_users = request.POST.get("users")
-                users = []
-                request_user_grant = False
-                if post_users is not None: 
-                    users = []
-                    perms = post_users.split(',')
-                    for perm in perms:
-                        user, grant = perm.split(':')
-                        if request.user.username == user:
-                            request_user_grant = True
-                        users.append([user, grant])
-                if request_user_grant == False:
-                    logger.info("granting request user because unspecified")
-                    users.append([request.user, "layer_admin"])
-                perm_spec = {'anonymous': anonymous, 
-                                'authenticated':authenticated, 
-                                'users': users}
+            if request.POST.get("permissions"):
+                perm_spec= json.loads(request.POST.get("permissions"))
             else:
                perm_spec = None 
             try:
@@ -1965,9 +1947,7 @@ def register_layers(request):
                     mimetype="text/plain",
                     status=404
                 )
-            if service.method == 'L':
-                    return HttpResponse('Not Implemented (Yet)', status=501)
-            elif service.method == 'C':
+            if service.method == 'C':
                 if service.type == 'WMS' or service.type == "WFS":
                     cat = Catalog(settings.GEOSERVER_BASE_URL + "rest", 
                                     _user , _password)
@@ -2040,6 +2020,8 @@ def register_layers(request):
                     return HttpResponse('Invalid Service Type', status=400)
             elif service.method == 'X':
                 return HttpResponse('Not Implemented (Yet)', status=501)
+            elif method == 'L':
+                return HttpResponse('Local Services not configurable via API', status=400)
             else:
                 return HttpResponse('Invalid Service Type', status=400)
         except:
