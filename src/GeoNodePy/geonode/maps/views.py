@@ -1929,26 +1929,8 @@ def register_layers(request):
             service_id = request.POST.get("service_id")
             layer_list = request.POST.get("layer_list")
             layers = layer_list.split(',')
-            if request.POST.get("anonymous") and request.POST.get("authenticated") and request.POST.get("users"):
-                anonymous = request.POST.get("anonymous")
-                authenticated = request.POST.get("authenticated")
-                post_users = request.POST.get("users")
-                users = []
-                request_user_grant = False
-                if post_users is not None: 
-                    users = []
-                    perms = post_users.split(',')
-                    for perm in perms:
-                        user, grant = perm.split(':')
-                        if request.user.username == user:
-                            request_user_grant = True
-                        users.append([user, grant])
-                if request_user_grant == False:
-                    logger.info("granting request user because unspecified")
-                    users.append([request.user, "layer_admin"])
-                perm_spec = {'anonymous': anonymous, 
-                                'authenticated':authenticated, 
-                                'users': users}
+            if request.POST.get("permissions"):
+                perm_spec= json.loads(request.POST.get("permissions"))
             else:
                perm_spec = None 
             try:
