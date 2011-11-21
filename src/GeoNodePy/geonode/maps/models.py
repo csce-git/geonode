@@ -18,6 +18,7 @@ from datetime import datetime
 from django.contrib.auth.models import User, Permission
 from django.utils.translation import ugettext as _
 from django.core.exceptions import ValidationError
+from django.template.defaultfilters import slugify
 from string import lower
 from StringIO import StringIO
 from xml.etree.ElementTree import parse, XML
@@ -486,10 +487,18 @@ class GeoNodeException(Exception):
     pass
 
 
+PROFILE_TYPES = (
+    ('U', 'End User'),
+    ('S', 'Supplier'),
+    ('P', 'Provider'),
+)
+
 class Contact(models.Model):
+    type = models.CharField(_('User Type'), max_length=1, choices=PROFILE_TYPES, null=True, blank=True, default='U')
     user = models.ForeignKey(User, blank=True, null=True)
     name = models.CharField(_('Individual Name'), max_length=255, blank=True, null=True)
     organization = models.CharField(_('Organization Name'), max_length=255, blank=True, null=True)
+    profile = models.TextField(_('Profile'), null=True, blank=True)
     position = models.CharField(_('Position Name'), max_length=255, blank=True, null=True)
     voice = models.CharField(_('Voice'), max_length=255, blank=True, null=True)
     fax = models.CharField(_('Facsimile'),  max_length=255, blank=True, null=True)
@@ -1653,6 +1662,52 @@ class ContactRole(models.Model):
     class Meta:
         unique_together = (("contact", "layer", "role"),)
 
+class Collection(models.Model, PermissionLevelMixin):
+    """
+    Collection Class for handling groups of Layers and/or Maps
+    """
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255)
+    description = models.TextField(null=True, blank=True)
+    owner = models.ForeignKey(User, blank=True, null=True)
+    layers = models.ManyToManyField(Layer, null=True, blank=True)
+    maps = models.ManyToManyField(Map, null=True, blank=True)
+
+    def get_absolute_url(self):
+        return '/collections/%s' % self.slug
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.slug = slugify(self.name)
+        super(Collection, self).save(*args, **kwargs)       
+ 
+    class Meta:
+        # custom permissions, 
+        # change and delete are standard in django
+        permissions = (('view_map', 'Can view'), 
+                       ('change_collection_permissions', "Can change permissions"), )
+
+    # Permission Level Constants
+    # LEVEL_NONE inherited
+    LEVEL_READ  = 'collection_readonly'
+    LEVEL_WRITE = 'collection_readwrite'
+    LEVEL_ADMIN = 'collection_admin'
+                 
+    def set_default_permissions(self):
+        self.set_gen_level(ANONYMOUS_USERS, self.LEVEL_READ)
+        self.set_gen_level(AUTHENTICATED_USERS, self.LEVEL_READ) 
+
+        # remove specific user permissions
+        current_perms =  self.get_all_level_info()
+        for username in current_perms['users'].keys():
+            user = User.objects.get(username=username)
+            self.set_user_level(user, self.LEVEL_NONE)
+
+        # assign owner admin privs
+        if self.owner:
+            self.set_user_level(self.owner, self.LEVEL_ADMIN)
+
+
 def delete_layer(instance, sender, **kwargs): 
     """
     Removes the layer from GeoServer and GeoNetwork
@@ -1673,5 +1728,14 @@ def post_save_layer(instance, sender, **kwargs):
         instance._populate_from_gn()
         instance.save(force_update=True)
 
+def create_user_profile(instance, sender, created, **kwargs):
+    try:
+        profile = Contact.objects.get(user=instance)
+    except Contact.DoesNotExist:
+        profile = Contact(user=instance)
+        profile.name = instance.username
+        profile.save()
+
 signals.pre_delete.connect(delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
+signals.post_save.connect(create_user_profile, sender=User)
