@@ -38,3 +38,8 @@ datapatterns = patterns('geonode.maps.views',
   url(r'^(?P<layername>[^/]*)/style$', 'layer_style', name="layer_style"),
   (r'^(?P<layername>[^/]*)/ajax-permissions$', 'ajax_layer_permissions'),
 )
+
+collectionpatterns = patterns('geonode.maps.views',
+    url(r'^$', 'collections', name="collections"),
+    url(r'^(?P<slug>[^/]*)$', 'collection_detail', name="collection_detail"),
+)

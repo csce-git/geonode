@@ -1,5 +1,5 @@
 from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
-from geonode.maps.models import Map, Layer, MapLayer, Contact, ContactRole,Role, get_csw
+from geonode.maps.models import Map, Layer, MapLayer, Contact, ContactRole, Role, Collection, get_csw
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
 from geonode import geonetwork
 import geoserver
@@ -1679,3 +1679,15 @@ def batch_delete(request):
     nmaps = len(spec.get('maps', []))
 
     return HttpResponse("Deleted %d layers and %d maps" % (nlayers, nmaps))
+
+def collections(request):
+    collections = Collection.objects.all()
+    return render_to_response('maps/collection_set.html', RequestContext(request, {
+            'collections' : collections,
+        })) 
+
+def collection_detail(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    return render_to_response('maps/collection_detail.html', RequestContext(request, {
+            'collection' : collection,
+        }))
