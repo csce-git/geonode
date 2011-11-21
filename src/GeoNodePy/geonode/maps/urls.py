@@ -42,4 +42,8 @@ datapatterns = patterns('geonode.maps.views',
 collectionpatterns = patterns('geonode.maps.views',
     url(r'^$', 'collections', name="collections"),
     url(r'^(?P<slug>[^/]*)$', 'collection_detail', name="collection_detail"),
+    url(r'^(?P<slug>(?:[-\w]+/)*[-\w]+)/edit$', 'collection_edit', name="collection_edit"),
+    url(r'^(?P<slug>(?:[-\w]+/)*[-\w]+)/remove$', 'collection_remove', name="collection_remove"),
+    url(r'^(?P<slug>(?:[-\w]+/)*[-\w]+)/download$', 'collection_download', name="collection_download"),
+    url(r'^(?P<slug>(?:[-\w]+/)*[-\w]+)/permissions$', 'collection_ajax_permissions', name="collection_ajax_permissions"),
 )
