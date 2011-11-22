@@ -2064,7 +2064,7 @@ def remove_service(request, service_id):
     '''
     service = get_object_or_404(Service,pk=service_id) 
 
-    if not request.user.has_perm('maps.remove_service', obj=service):
+    if not request.user.has_perm('maps.delete_service', obj=service):
         return HttpResponse(loader.render_to_string('401.html', 
             RequestContext(request, {'error_message': 
                 _("You are not permitted to remove this service.")})), status=401)
