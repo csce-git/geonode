@@ -1920,6 +1920,10 @@ def post_save_layer(instance, sender, **kwargs):
         instance._populate_from_gn()
         instance.save(force_update=True)
 
+def post_save_service(instance, sender, created, **kwargs):
+    if created:
+        instance.set_default_permissions()    
+
 def pre_delete_service(instance, sender, **kwargs):
     if instance.method == 'H':
         gn = Layer.objects.gn_catalog
@@ -1929,3 +1933,4 @@ def pre_delete_service(instance, sender, **kwargs):
 signals.pre_delete.connect(pre_delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
 signals.pre_delete.connect(pre_delete_service, sender=Service)
+signals.post_save.connect(post_save_service, sender=Service)
