@@ -2115,6 +2115,39 @@ def service_layers(request, service_id):
                                  status=400)
 
 
+def set_service_permissions(service, perm_spec):
+    if "authenticated" in perm_spec:
+        service.set_gen_level(AUTHENTICATED_USERS, perm_spec['authenticated'])
+    if "anonymous" in perm_spec:
+        service.set_gen_level(ANONYMOUS_USERS, perm_spec['anonymous'])
+    users = [n for (n, p) in perm_spec['users']]
+    service.get_user_levels().exclude(user__username__in = users + [service.owner]).delete()
+    for username, level in perm_spec['users']:
+        user = User.objects.get(username=username)
+        service.set_user_level(user, level)
+
 @login_required
-def ajax_service_permissions(request, service_id):    
-    return HttpResponse('Not Implemented (Yet)', status=501)
+def ajax_service_permissions(request, service_id):
+    service = get_object_or_404(Service,pk=service_id) 
+    if not request.user.has_perm("maps.change_service_permissions", obj=service):
+        return HttpResponse(
+            'You are not allowed to change permissions for this service',
+            status=401,
+            mimetype='text/plain'
+        )
+
+    if not request.method == 'POST':
+        return HttpResponse(
+            'You must use POST for editing service permissions',
+            status=405,
+            mimetype='text/plain'
+        )
+
+    spec = json.loads(request.raw_post_data)
+    set_service_permissions(service, spec)
+
+    return HttpResponse(
+        "Permissions updated",
+        status=200,
+        mimetype='text/plain'
+    )
