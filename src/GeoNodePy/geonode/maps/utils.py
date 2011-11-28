@@ -406,10 +406,8 @@ def save(layer, base_file, user, overwrite = True, title=None, abstract=None, pe
     # Step 12. Insert the payment options
     logger.info('>>> Step 12. Setting payment options [%s]', name)
     if permissions is not None:
-        payment_options = [n for (n, p, q) in permissions['payment_options']]
-        if payment_options is not None:
-            from anzsm.payment.utils import setPaymentOptions
-            setPaymentOptions(saved_layer, permissions)    
+        from anzsm.payment.utils import setPaymentOptions
+        setPaymentOptions(saved_layer, permissions)    
     
   
     # Step 13. Verify the layer was saved correctly and clean up if needed
