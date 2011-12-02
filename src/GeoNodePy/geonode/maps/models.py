@@ -639,9 +639,6 @@ class LayerManager(models.Manager):
             if verbosity > 0:
                 print >> console, msg
 
-        # Doing a logout since we know we don't need this object anymore.
-        self.geonetwork.logout()
-
         return output
 
     def gn_guzzle(self, ignore_errors=True, verbosity=1, console=sys.stdout):
