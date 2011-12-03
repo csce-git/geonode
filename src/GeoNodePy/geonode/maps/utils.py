@@ -409,7 +409,11 @@ def save(layer, base_file, user, overwrite = True, title=None, abstract=None, pe
         from anzsm.payment.utils import setPaymentOptions
         setPaymentOptions(saved_layer, permissions)    
     
-  
+    logger.info('>>> Creating the licensing agreement')
+    if permissions is not None:
+        from anzsm.payment.utils import setResourceLicenseAgreement
+        setResourceLicenseAgreement ( saved_layer , permissions)
+   
     # Step 13. Verify the layer was saved correctly and clean up if needed
     logger.info('>>> Step 13. Verifying the layer [%s] was created correctly' % name)
 
