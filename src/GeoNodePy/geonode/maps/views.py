@@ -990,7 +990,7 @@ def _view_perms_context(obj, level_names):
 
     return ctx
 
-from anzsm.payment.utils import getPaymentOptions, getResourceLicenseAgreement
+from anzsm.payment.utils import getPaymentOptions, getRecourseLicenseAgreement
 def _perms_info(obj, level_names):
     info = obj.get_all_level_info()
     # these are always specified even if none
@@ -999,7 +999,11 @@ def _perms_info(obj, level_names):
     info['users'] = sorted(info['users'].items())
     info['levels'] = [(i, level_names[i]) for i in obj.permission_levels]
     info['payment_options'] = getPaymentOptions(obj)
-    info['license_id'] = getResourceLicenseAgreement(obj).payment_license.id
+    licenseAgreement =  getRecourseLicenseAgreement(obj)
+    if (licenseAgreement is not None):
+        info['license_id'] = getRecourseLicenseAgreement(obj).payment_license.id
+    else:
+        info['license_id'] = '-1'     
     if hasattr(obj, 'owner') and obj.owner is not None:
         info['owner'] = obj.owner.username
     return info
