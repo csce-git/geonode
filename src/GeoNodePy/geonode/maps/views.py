@@ -859,12 +859,15 @@ def layer_detail(request, layername):
     map = Map(projection="EPSG:900913")
     DEFAULT_BASE_LAYERS = default_map_config()[1]
 
+    license_agreement = getRecourseLicenseAgreement (layer)
+
     return render_to_response('maps/layer.html', RequestContext(request, {
         "layer": layer,
         "metadata": metadata,
         "viewer": json.dumps(map.viewer_json(* (DEFAULT_BASE_LAYERS + [maplayer]))),
         "permissions_json": _perms_info_json(layer, LAYER_LEV_NAMES),
-        "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL
+        "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL,
+        "license_agreement" : license_agreement
     }))
 
         
