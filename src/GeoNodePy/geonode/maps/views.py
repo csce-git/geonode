@@ -508,7 +508,7 @@ def set_map_permissions(m, perm_spec):
         user = User.objects.get(username=username)
         m.set_user_level(user, level)
 
-from anzsm.payment.utils import setPaymentOptions
+from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement
 def ajax_layer_permissions(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
 
@@ -529,6 +529,7 @@ def ajax_layer_permissions(request, layername):
     permission_spec = json.loads(request.raw_post_data)
     set_layer_permissions(layer, permission_spec)
     setPaymentOptions (layer, permission_spec)
+    setResourceLicenseAgreement(layer , permission_spec)
     return HttpResponse(
         "Permissions updated",
         status=200,
@@ -839,7 +840,7 @@ def layer_style(request, layername):
     else:  
         return HttpResponse("Not allowed",status=403)
 
-@csrf_exempt
+
 def layer_detail(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
     if not request.user.has_perm('maps.view_layer', obj=layer):
@@ -858,12 +859,15 @@ def layer_detail(request, layername):
     map = Map(projection="EPSG:900913")
     DEFAULT_BASE_LAYERS = default_map_config()[1]
 
+    license_agreement = getRecourseLicenseAgreement (layer)
+
     return render_to_response('maps/layer.html', RequestContext(request, {
         "layer": layer,
         "metadata": metadata,
         "viewer": json.dumps(map.viewer_json(* (DEFAULT_BASE_LAYERS + [maplayer]))),
         "permissions_json": _perms_info_json(layer, LAYER_LEV_NAMES),
-        "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL
+        "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL,
+        "license_agreement" : license_agreement
     }))
 
         
@@ -989,7 +993,7 @@ def _view_perms_context(obj, level_names):
 
     return ctx
 
-from anzsm.payment.utils import getPaymentOptions
+from anzsm.payment.utils import getPaymentOptions, getRecourseLicenseAgreement
 def _perms_info(obj, level_names):
     info = obj.get_all_level_info()
     # these are always specified even if none
@@ -998,6 +1002,11 @@ def _perms_info(obj, level_names):
     info['users'] = sorted(info['users'].items())
     info['levels'] = [(i, level_names[i]) for i in obj.permission_levels]
     info['payment_options'] = getPaymentOptions(obj)
+    licenseAgreement =  getRecourseLicenseAgreement(obj)
+    if (licenseAgreement is not None):
+        info['license_id'] = getRecourseLicenseAgreement(obj).payment_license.id
+    else:
+        info['license_id'] = '-1'     
     if hasattr(obj, 'owner') and obj.owner is not None:
         info['owner'] = obj.owner.username
     return info
