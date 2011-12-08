@@ -1,5 +1,5 @@
 from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
-from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole, Role, Collection, get_csw, search_history
+from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole, Role, Collection, Thumbnail, get_csw, search_history
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
 from geonode import geonetwork
 import geoserver
@@ -669,6 +669,8 @@ def map_controller(request, mapid):
         return deletemap(request, mapid)
     if 'describe' in request.GET:
         return describemap(request, mapid)
+    if 'thumbnail' in request.GET:
+        return _handleThumbNail(request, Map.objects.get(pk=mapid))
     else:
         return mapdetail(request, mapid)
 
@@ -876,6 +878,24 @@ def layer_detail(request, layername):
     }))
 
         
+def _handleThumbNail(req, obj):
+    if not req.user.has_perm('maps.change_maps', obj=obj) and not request.user.has_perm('maps.change_layer', obj=obj):
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
+                _("You are not permitted to modify this layer")})), status=401)
+    if req.method == 'GET':
+        thumb = Thumbnail.objects.get_thumbnail(obj,allow_null=False)
+        if thumb:
+            return HttpResponseRedirect(thumb.get_thumbnail_url())
+        else:
+            raise HttpResponse(status=404)
+    elif req.method == 'POST':
+        thumb = Thumbnail.objects.get_thumbnail(obj,allow_null=False)
+        thumb.thumb_spec = req.raw_post_data
+        thumb.generate_thumbnail()
+        thumb.save()
+        return HttpResponseRedirect(thumb.get_thumbnail_url())
+
 GENERIC_UPLOAD_ERROR = _("There was an error while attempting to upload your data. \
 Please try again, or contact and administrator if the problem continues.")
 
@@ -1282,6 +1302,7 @@ def metadata_search(request):
                 'delete': request.user.has_perm('maps.delete_layer', obj=layer),
                 'change_permissions': request.user.has_perm('maps.change_layer_permissions', obj=layer),
             }
+            thumbnail = Thumbnail.objects.get_thumbnail(layer)
         except Layer.DoesNotExist:
             doc['_local'] = False
             pass
@@ -1482,6 +1503,185 @@ def search_page(request):
         "site" : settings.SITEURL
     }))
 
+def new_search_page(request):
+    DEFAULT_MAP_CONFIG, DEFAULT_BASE_LAYERS = default_map_config()
+    #DEFAULT_MAP_CONFIG, DEFAULT_BASE_LAYERS = default_map_config(request)
+    # for non-ajax requests, render a generic search page
+
+    if request.method == 'GET':
+        params = request.GET
+    elif request.method == 'POST':
+        params = request.POST
+    else:
+        return HttpResponse(status=405)
+
+    map = Map(projection="EPSG:900913", zoom = 1, center_x = 0, center_y = 0)
+
+    counts = {
+        'maps' : Map.objects.count(),
+        'layers' : Layer.objects.count(),
+        'vector' : Layer.objects.filter(storeType='dataStore').count(),
+        'raster' : Layer.objects.filter(storeType='coverageStore').count(),
+        'users' : Contact.objects.count()
+    }
+
+    return render_to_response('maps/new_search.html', RequestContext(request, {
+        'init_search': json.dumps(params or {}),
+        #'viewer_config': json.dumps(map.viewer_json(added_layers=DEFAULT_BASE_LAYERS, authenticated=request.user.is_authenticated())),
+        'viewer_config': json.dumps(map.viewer_json(*DEFAULT_BASE_LAYERS)), 
+        'GOOGLE_API_KEY' : settings.GOOGLE_API_KEY,
+        "site" : settings.SITEURL,
+        'counts' : counts,
+        'keywords' : Layer.objects.gn_catalog.get_all_keywords()
+    }))
+
+def new_search_api(request):
+    if request.method == 'GET':
+        params = request.GET
+    elif request.method == 'POST':
+        params = request.POST
+    else:
+        return HttpResponse(status=405)
+
+    # grab params directly to implement defaults as
+    # opposed to panicy django forms behavior.
+    query = params.get('q', '')
+    try:
+        start = int(params.get('start', '0'))
+    except:
+        start = 0
+    try:
+        limit = min(int(params.get('limit', DEFAULT_MAPS_SEARCH_BATCH_SIZE)),
+                    MAX_MAPS_SEARCH_BATCH_SIZE)
+    except:
+        limit = DEFAULT_MAPS_SEARCH_BATCH_SIZE
+
+    sort_field, sort_asc = {
+        'newest' : ('last_modified',False),
+        'oldest' : ('last_modified',True),
+        'alphaaz' : ('title',True),
+        'alphaza' : ('title',False),
+
+    }[params.get('sort','newest')]
+
+    filters = {}
+    for k in ('bytype','kw'):
+        if k in params:
+            if params[k]:
+                filters[k] = params[k]
+
+    result = _new_search(query, start, limit, sort_field, sort_asc, **filters)
+
+    result['success'] = True
+    return HttpResponse(json.dumps(result), mimetype="application/json")
+
+def _combined_search_results(query):
+    # cache based on query key or universal cache key
+    from django.core.cache import cache
+    from time import time
+    cache_key = query and 'search_results_%s' % query or 'search_results_all'
+    cached_results = cache.get(cache_key)
+    if cached_results: return cached_results
+    ts = time()
+    
+    # @todo think about only caching geonetwork results since map queries will be fast
+    
+    map_query = Map.objects
+
+    if query:
+        keywords = _split_query(query)
+        for keyword in keywords:
+            map_query = map_query.filter(
+                  Q(title__icontains=keyword)
+                | Q(abstract__icontains=keyword))
+
+    results = []
+    
+    maps = list(map_query.all())
+    thumbs = Thumbnail.objects.get_thumbnails(maps)
+    for map in maps:
+        try:
+            owner_name = Contact.objects.get(user=map.owner).name
+        except:
+            owner_name = map.owner.first_name + " " + map.owner.last_name
+        thumb = thumbs.get(map.id, None)
+        # resolve any local layers and their keywords
+        local_kw = [ l.keywords.split(' ') for l in map.local_layers if l.keywords]
+        keywords = local_kw and list(set( reduce(lambda a,b: a+b, local_kw))) or []
+        mapdict = {
+            'id' : map.id,
+            'title' : map.title,
+            'abstract' : map.abstract,
+            'detail' : reverse('geonode.maps.views.map_controller', args=(map.id,)),
+            'owner' : owner_name,
+            'owner_detail' : reverse('profiles.views.profile_detail', args=(map.owner.username,)),
+            'last_modified' : map.last_modified.isoformat(),
+            '_type' : 'map',
+            '_display_type' : 'Map',
+            'thumb' : thumb and thumb.get_thumbnail_url() or None,
+            'keywords' : keywords
+            }
+        results.append(mapdict)
+        
+    layer_results = _metadata_search(query, 0, 1000)['rows']
+    
+    layers = list(Layer.objects.filter(uuid__in=[ doc['uuid'] for doc in layer_results ]))
+    thumbs = Thumbnail.objects.get_thumbnails(layers)
+    layers = dict([ (l.uuid,l) for l in layers])
+    for doc in layer_results:
+        layer = layers.get(doc['uuid'],None)
+        if layer is None: continue #@todo - remote layer (how to get last_modified?)
+        thumb = thumbs.get(layer.id,None)
+        doc['owner'] = layer.metadata_author.name
+        doc['thumb'] = thumb and thumb.get_thumbnail_url() or None
+        doc['last_modified'] = layer.date.isoformat()
+        doc['id'] = layer.id
+        doc['_type'] = 'layer'
+        doc['storeType'] = layer.storeType
+        doc['_display_type'] = layer.display_type
+        owner = layer.owner
+        if owner:
+            doc['owner_detail'] = reverse('profiles.views.profile_detail', args=(layer.owner.username,))
+        results.append(doc)
+        
+    # @todo search cache timeout in settings?
+    cache.set(cache_key,results,timeout=300)
+    logger.info('generated combined search cache in %s',time() - ts)
+    return results
+
+def _new_search(query, start, limit, sort_field, sort_asc, **filters):
+
+    results = _combined_search_results(query)
+
+    filter_fun = []
+    # careful when creating lambda or function filters inline like this
+    # as multiple filters cannot use the same local variable or they
+    # will overwrite each other
+    if 'bytype' in filters:
+        bytype = filters['bytype']
+        filter_fun.append(lambda r: r['_type'] == bytype or r.get('storeType',None) == bytype)
+    if 'kw' in filters:
+        kw = filters['kw']
+        filter_fun.append(lambda r: 'keywords' in r and kw in r['keywords'])
+
+    for fun in filter_fun:
+        results = filter(fun,results)
+
+    # default sort order by id (could be last_modified when external layers are dealt with)
+    results.sort(key=lambda r: r[sort_field or 'id'],reverse=not sort_asc)
+
+    totalQueryCount = len(results)
+    results = results[start:start+limit]
+    # unique item id for ext store (this could be done client side)
+    iid = start
+    for r in results:
+        r['iid'] = iid
+        iid += 1
+        
+    return {
+        'rows' : results,
+        'total' : totalQueryCount
+    }
 
 def change_poc(request, ids, template = 'maps/change_poc.html'):
     layers = Layer.objects.filter(id__in=ids.split('_'))
