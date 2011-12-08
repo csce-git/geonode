@@ -649,9 +649,6 @@ class LayerManager(models.Manager):
             if verbosity > 0:
                 print >> console, msg
 
-        # Doing a logout since we know we don't need this object anymore.
-        self.geonetwork.logout()
-
         return output
 
     def gn_guzzle(self, ignore_errors=True, verbosity=1, console=sys.stdout):
@@ -1990,6 +1987,10 @@ def post_save_layer(instance, sender, **kwargs):
         instance._populate_from_gn()
         instance.save(force_update=True)
 
+def post_save_service(instance, sender, created, **kwargs):
+    if created:
+        instance.set_default_permissions()    
+
 def pre_delete_service(instance, sender, **kwargs):
     if instance.method == 'H':
         gn = Layer.objects.gn_catalog
@@ -2011,7 +2012,6 @@ def post_save_collection(instance, sender, created, **kwargs):
 signals.pre_delete.connect(pre_delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
 signals.pre_delete.connect(pre_delete_service, sender=Service)
+signals.post_save.connect(post_save_service, sender=Service)
 signals.post_save.connect(create_user_profile, sender=User)
-signals.pre_delete.connect(delete_layer, sender=Layer)
-signals.post_save.connect(post_save_layer, sender=Layer)
 signals.post_save.connect(post_save_collection, sender=Collection)

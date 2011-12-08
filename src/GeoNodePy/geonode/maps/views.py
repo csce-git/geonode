@@ -37,6 +37,7 @@ from django.db.models import Q
 import logging
 import datetime
 import sys, traceback
+from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement
 
 logger = logging.getLogger("geonode.maps.views")
 
@@ -512,7 +513,6 @@ def set_object_permissions(obj, perm_spec):
             user = User.objects.get(username=name)
             obj.set_user_level(user, level)
 
-from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement
 def ajax_layer_permissions(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
 
@@ -2010,7 +2010,7 @@ def register_layers(request):
                             new_layer.owner = request.user
                             new_layer.save()
                             if perm_spec:
-                                set_layer_permissions(new_layer, perm_spec)
+                                set_object_permissions(new_layer, perm_spec)
                             else:
                                 pass # Will be assigned default perms
                             count += 1
@@ -2113,7 +2113,7 @@ def remove_service(request, service_id):
     '''
     service = get_object_or_404(Service,pk=service_id) 
 
-    if not request.user.has_perm('maps.remove_service', obj=service):
+    if not request.user.has_perm('maps.delete_service', obj=service):
         return HttpResponse(loader.render_to_string('401.html', 
             RequestContext(request, {'error_message': 
                 _("You are not permitted to remove this service.")})), status=401)
@@ -2165,8 +2165,30 @@ def service_layers(request, service_id):
 
 
 @login_required
-def ajax_service_permissions(request, service_id):    
-    return HttpResponse('Not Implemented (Yet)', status=501)
+def ajax_service_permissions(request, service_id):
+    service = get_object_or_404(Service,pk=service_id) 
+    if not request.user.has_perm("maps.change_service_permissions", obj=service):
+        return HttpResponse(
+            'You are not allowed to change permissions for this service',
+            status=401,
+            mimetype='text/plain'
+        )
+
+    if not request.method == 'POST':
+        return HttpResponse(
+            'You must use POST for editing service permissions',
+            status=405,
+            mimetype='text/plain'
+        )
+
+    spec = json.loads(request.raw_post_data)
+    set_object_permissions(service, spec)
+
+    return HttpResponse(
+        "Permissions updated",
+        status=200,
+        mimetype='text/plain'
+    )
 
 def collections(request):
     collections = Collection.objects.all()
@@ -2199,19 +2221,8 @@ def collection_download(request, slug):
             'collection' : collection,
         }))
 
-def set_collection_permissions(collection, perm_spec):
-    if "authenticated" in perm_spec:
-        collection.set_gen_level(AUTHENTICATED_USERS, perm_spec['authenticated'])
-    if "anonymous" in perm_spec:
-        collection.set_gen_level(ANONYMOUS_USERS, perm_spec['anonymous'])
-    users = [n for (n, p) in perm_spec['users']]
-    collection.get_user_levels().exclude(user__username__in = users + [collection.owner]).delete()
-    for username, level in perm_spec['users']:
-        user = User.objects.get(username=username)
-        collection.set_user_level(user, level)
-
 def collection_ajax_permissions(request, slug):
-    collection = get_object_or_404(Collection,slug=slug) 
+    collection = get_object_or_404(Collection, slug=slug)
     if not request.user.has_perm("maps.change_collection_permissions", obj=collection):
         return HttpResponse(
             'You are not allowed to change permissions for this collection',
@@ -2227,7 +2238,7 @@ def collection_ajax_permissions(request, slug):
         )
 
     spec = json.loads(request.raw_post_data)
-    set_collection_permissions(collection, spec)
+    set_object_permissions(collection, spec)
 
     return HttpResponse(
         "Permissions updated",
