@@ -1,3 +1,4 @@
+import os.path
 # -*- coding: UTF-8 -*-
 from django.conf import settings
 from django.db import models
@@ -10,6 +11,7 @@ from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
 from geonode.geonetwork import Catalog as GeoNetwork
 from django.db.models import signals
 from django.utils.html import escape
+from taggit.managers import TaggableManager
 import httplib2
 import simplejson
 import urllib
@@ -19,12 +21,17 @@ from datetime import datetime
 from django.contrib.auth.models import User, Permission
 from django.utils.translation import ugettext as _
 from django.core.exceptions import ValidationError
+from django.template.defaultfilters import slugify
 from string import lower
 from StringIO import StringIO
 from xml.etree.ElementTree import parse, XML
 from gs_helpers import cascading_delete
 import logging
 import sys
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes import generic
+import os
+from django.core.files.storage import FileSystemStorage
 
 logger = logging.getLogger("geonode.maps.models")
 
@@ -487,10 +494,18 @@ class GeoNodeException(Exception):
     pass
 
 
+PROFILE_TYPES = (
+    ('U', 'End User'),
+    ('S', 'Supplier'),
+    ('P', 'Provider'),
+)
+
 class Contact(models.Model):
+    type = models.CharField(_('User Type'), max_length=1, choices=PROFILE_TYPES, null=True, blank=True, default='U')
     user = models.ForeignKey(User, blank=True, null=True)
     name = models.CharField(_('Individual Name'), max_length=255, blank=True, null=True)
     organization = models.CharField(_('Organization Name'), max_length=255, blank=True, null=True)
+    profile = models.TextField(_('Profile'), null=True, blank=True)
     position = models.CharField(_('Position Name'), max_length=255, blank=True, null=True)
     voice = models.CharField(_('Voice'), max_length=255, blank=True, null=True)
     fax = models.CharField(_('Facsimile'),  max_length=255, blank=True, null=True)
@@ -500,6 +515,8 @@ class Contact(models.Model):
     zipcode = models.CharField(_('Postal Code'), max_length=255, blank=True, null=True)
     country = models.CharField(choices=COUNTRIES, max_length=3, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
+    
+    keywords = TaggableManager(_('keywords'), help_text=_("A space or comma-separated list of keywords"), blank=True)
 
     def clean(self):
         # the specification says that either name or organization should be provided
@@ -639,9 +656,6 @@ class LayerManager(models.Manager):
             output.append(info)
             if verbosity > 0:
                 print >> console, msg
-
-        # Doing a logout since we know we don't need this object anymore.
-        self.geonetwork.logout()
 
         return output
 
@@ -911,7 +925,7 @@ class Layer(models.Model, PermissionLevelMixin):
     # see poc property definition below
 
     # section 3
-    keywords = models.TextField(_('keywords'), blank=True, null=True)
+    keywords = TaggableManager(_('keywords'), help_text=_("A space or comma-separated list of keywords"), blank=True)
     keywords_region = models.CharField(_('keywords region'), max_length=3, choices= COUNTRIES, default = 'USA')
     constraints_use = models.CharField(_('constraints use'), max_length=255, choices = [(x, x) for x in CONSTRAINT_OPTIONS], default='copyright')
     constraints_other = models.TextField(_('constraints other'), blank=True, null=True)
@@ -1335,8 +1349,13 @@ class Layer(models.Model, PermissionLevelMixin):
         meta = self.metadata_csw()
         if meta is None:
             return
-        #self.keywords = ' '.join([word for word in meta.identification.keywords['list'] if isinstance(word,str)])
-        self.keywords = ''
+        kw_list = reduce(
+                lambda x, y: x + y["keywords"],
+                meta.identification.keywords,
+                [])
+        kw_list = filter(lambda x: x is not None, kw_list)
+        self.keywords.add(*kw_list)
+        
         if hasattr(meta.distribution, 'online'):
             onlineresources = [r for r in meta.distribution.online if r.protocol == "WWW:LINK-1.0-http--link"]
             if len(onlineresources) == 1:
@@ -1345,10 +1364,11 @@ class Layer(models.Model, PermissionLevelMixin):
                 self.distribution_description = res.description
 
     def keyword_list(self):
-        if self.keywords is None:
-            return []
+        keywords_qs = self.keywords.all()
+        if keywords_qs:
+            return [kw.name for kw in keywords_qs]
         else:
-            return self.keywords.split(" ")
+            return []
 
     def set_bbox(self, box, srs=None):
         """
@@ -1388,7 +1408,10 @@ class Layer(models.Model, PermissionLevelMixin):
         for username in current_perms['users'].keys():
             user = User.objects.get(username=username)
             self.set_user_level(user, self.LEVEL_NONE)
-
+        for groupname in current_perms['groups'].keys():
+            group = Group.objects.get(name=groupname)
+            self.set_group_level(user, self.LEVEL_NONE)
+            
         # assign owner admin privs
         if self.owner:
             self.set_user_level(self.owner, self.LEVEL_ADMIN)
@@ -1445,6 +1468,8 @@ class Map(models.Model, PermissionLevelMixin):
     The last time the map was modified.
     """
 
+    keywords = TaggableManager(_('keywords'), help_text=_("A space or comma-separated list of keywords"), blank=True)
+
     def __unicode__(self):
         return '%s by %s' % (self.title, (self.owner.username if self.owner else "<Anonymous>"))
 
@@ -1463,7 +1488,8 @@ class Map(models.Model, PermissionLevelMixin):
 
     @property
     def local_layers(self): 
-        return True
+        names = [layer.name for layer in self.layers]
+        return Layer.objects.filter(typename__in=names)
 
     def json(self, layer_filter):
         map_layers = MapLayer.objects.filter(map=self.id)
@@ -1599,6 +1625,8 @@ class Map(models.Model, PermissionLevelMixin):
         
         for layer in self.layer_set.all():
             layer.delete()
+            
+        self.keywords.add(*conf['map'].get('keywords', []))
 
         for ordering, layer in enumerate(layers):
             self.layer_set.add(
@@ -1606,6 +1634,13 @@ class Map(models.Model, PermissionLevelMixin):
                     self, layer, source_for(layer), ordering
             ))
         self.save()
+
+    def keyword_list(self):
+        keywords_qs = self.keywords.all()
+        if keywords_qs:
+            return [kw.name for kw in keywords_qs]
+        else:
+            return []
 
     def get_absolute_url(self):
         return '/maps/%i' % self.id
@@ -1631,7 +1666,10 @@ class Map(models.Model, PermissionLevelMixin):
         for username in current_perms['users'].keys():
             user = User.objects.get(username=username)
             self.set_user_level(user, self.LEVEL_NONE)
-
+        for groupname in current_perms['groups'].keys():
+            group = Group.objects.get(name=groupname)
+            self.set_group_level(user, self.LEVEL_NONE)
+            
         # assign owner admin privs
         if self.owner:
             self.set_user_level(self.owner, self.LEVEL_ADMIN)    
@@ -1890,6 +1928,144 @@ class ContactRole(models.Model):
     class Meta:
         unique_together = (("contact", "layer", "role"),)
 
+class search_history(models.Model):
+    search_keyword = models.CharField(max_length=100, db_column='search_keyword')
+    search_date = models.DateTimeField(db_column='search_date')
+    search_returned = models.PositiveIntegerField(db_column='search_returned');
+    
+    class Meta:
+        db_table = u'search_history'
+
+    def __unicode__(self):
+        return self.resource
+
+class Collection(models.Model, PermissionLevelMixin):
+    """
+    Collection Class for handling groups of Layers and/or Maps
+    """
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255)
+    description = models.TextField(null=True, blank=True)
+    owner = models.ForeignKey(User, blank=True, null=True)
+    layers = models.ManyToManyField(Layer, null=True, blank=True)
+    maps = models.ManyToManyField(Map, null=True, blank=True)
+
+    def get_absolute_url(self):
+        return '/collections/%s' % self.slug
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.slug = slugify(self.name)
+        super(Collection, self).save(*args, **kwargs)       
+ 
+    class Meta:
+        # custom permissions, 
+        # change and delete are standard in django
+        permissions = (('view_collection', 'Can view'), 
+                       ('change_collection_permissions', "Can change permissions"), )
+
+    # Permission Level Constants
+    # LEVEL_NONE inherited
+    LEVEL_READ  = 'collection_readonly'
+    LEVEL_WRITE = 'collection_readwrite'
+    LEVEL_ADMIN = 'collection_admin'
+                 
+    def set_default_permissions(self):
+        self.set_gen_level(ANONYMOUS_USERS, self.LEVEL_READ)
+        self.set_gen_level(AUTHENTICATED_USERS, self.LEVEL_READ) 
+
+        # remove specific user permissions
+        current_perms =  self.get_all_level_info()
+        for username in current_perms['users'].keys():
+            user = User.objects.get(username=username)
+            self.set_user_level(user, self.LEVEL_NONE)
+
+        # assign owner admin privs
+        if self.owner:
+            self.set_user_level(self.owner, self.LEVEL_ADMIN)
+
+class ThumbnailManager(models.Manager):
+    def __init__(self):
+        models.Manager.__init__(self)
+        self.storage = FileSystemStorage(
+            location = os.path.join(settings.PROJECT_ROOT, "static","thumbs"),
+            base_url = settings.STATIC_URL + "thumbs/"
+        )
+        if not os.path.exists(self.storage.location):
+            os.makedirs(self.storage.location)
+    def get_thumbnail(self,obj,allow_null=True):
+        thumb_type = ContentType.objects.get_for_model(obj)
+        thumbs = list(self.filter(content_type__pk=thumb_type.id,object_id=obj.id))
+        if not allow_null and not thumbs:
+            thumbs.append(Thumbnail(content_object=obj))
+        return thumbs and thumbs[0] or None
+    def get_thumbnails(self,objs):
+        """For the provided objects of the same type, get a dict
+        with object.id as key and thumbnail as value. objs without
+        thumbs will not be present in the dict.
+        """
+        if not objs: return []
+        try:
+            not_null = ( o for o in objs if o is not None ).next()
+        except StopIteration:
+            return []
+        thumb_type = ContentType.objects.get_for_model(not_null)
+        thumbs = self.filter(content_type__pk=thumb_type.id)
+        ids = [ o.id for o in objs]
+        thumbs = thumbs.filter(object_id__in=ids)
+        return dict([ (t.content_object.id,t) for t in thumbs])
+
+class Thumbnail(models.Model):
+    objects = ThumbnailManager()
+
+    thumb_spec = models.TextField()
+    content_type = models.ForeignKey(ContentType)
+    object_id = models.PositiveIntegerField()
+    content_object = generic.GenericForeignKey()
+
+    def _path(self):
+        if isinstance(self.content_object,Map):
+            parts = "map",str(self.content_object.id)
+        else:
+            parts = "layer",self.content_object.uuid
+        return "".join(parts) + ".png"
+    def get_thumbnail_url(self):
+        return Thumbnail.objects.storage.url(self._path())
+    def get_thumbnail_path(self):
+        return Thumbnail.objects.storage.path(self._path())
+    def delete(self):
+        path = self.get_thumbnail_path()
+        if os.path.exists(path):
+            os.unlink(path)
+        super(Thumbnail,self).delete()
+    def set_spec(self,spec):
+        self.thumb_spec = spec
+        self.generate_thumbnail()
+        self.save()
+
+    def generate_thumbnail(self):
+        http = httplib2.Http()
+        url = "%srest/printng/render.png" % settings.GEOSERVER_BASE_URL
+        http.add_credentials(_user, _password)
+        netloc = urlparse(url).netloc
+        http.authorizations.append(
+        httplib2.BasicAuthentication(
+            (_user,_password),
+            netloc,
+            url,
+            {},
+            None,
+            None,
+            http
+        ))
+        resp, content = http.request(url,"POST",str(self.thumb_spec))
+        if resp.status < 200 or resp.status > 299:
+            logging.warning('Error generating thumbnail %s',content)
+            raise Exception('Error generating thumbnail')
+        with open(self.get_thumbnail_path(),"wb") as fp:
+            fp.write(content)
+    
+
 def pre_delete_layer(instance, sender, **kwargs): 
     """
     Removes the layer from GeoServer and GeoNetwork
@@ -1918,16 +2094,9 @@ def post_save_layer(instance, sender, **kwargs):
         instance._populate_from_gn()
         instance.save(force_update=True)
 
-class search_history(models.Model):
-    search_keyword = models.CharField(max_length=100, db_column='search_keyword')
-    search_date = models.DateTimeField(db_column='search_date')
-    search_returned = models.PositiveIntegerField(db_column='search_returned');
-    
-    class Meta:
-        db_table = u'search_history'
-
-    def __unicode__(self):
-        return self.resource
+def post_save_service(instance, sender, created, **kwargs):
+    if created:
+        instance.set_default_permissions()    
 
 def pre_delete_service(instance, sender, **kwargs):
     if instance.method == 'H':
@@ -1935,6 +2104,27 @@ def pre_delete_service(instance, sender, **kwargs):
         gn.control_harvesting_task('stop', [instance.external_id]) 
         gn.control_harvesting_task('remove', [instance.external_id]) 
 
+def create_user_profile(instance, sender, created, **kwargs):
+    try:
+        profile = Contact.objects.get(user=instance)
+    except Contact.DoesNotExist:
+        profile = Contact(user=instance)
+        profile.name = instance.username
+        profile.save()
+
+def post_save_collection(instance, sender, created, **kwargs):
+    if created:
+        instance.set_default_permissions()
+
+def _remove_thumb(instance, sender, **kw):
+    for t in Thumbnail.objects.filter(object_id=instance.id):
+        t.delete()
+
+signals.pre_delete.connect(_remove_thumb, sender=Layer)
+signals.pre_delete.connect(_remove_thumb, sender=Map)
 signals.pre_delete.connect(pre_delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
 signals.pre_delete.connect(pre_delete_service, sender=Service)
+signals.post_save.connect(post_save_service, sender=Service)
+signals.post_save.connect(create_user_profile, sender=User)
+signals.post_save.connect(post_save_collection, sender=Collection)

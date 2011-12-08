@@ -1,5 +1,5 @@
 from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
-from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole,Role, get_csw, search_history
+from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole, Role, Collection, Thumbnail, get_csw, search_history
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
 from geonode import geonetwork
 import geoserver
@@ -9,7 +9,7 @@ import base64
 from django import forms
 from django.contrib.auth import authenticate, get_backends as get_auth_backends
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.contrib.gis.geos import GEOSGeometry
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.urlresolvers import reverse
@@ -26,6 +26,7 @@ from owslib.csw import CswRecord, namespaces
 from owslib.util import nspath
 from owslib.wms import WebMapService
 import re
+from urllib2 import HTTPError
 from urllib import urlencode
 from urlparse import urlparse
 import uuid
@@ -36,6 +37,8 @@ from django.db.models import Q
 import logging
 import datetime
 import sys, traceback
+from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement
+import taggit
 
 logger = logging.getLogger("geonode.maps.views")
 
@@ -98,7 +101,7 @@ class LayerForm(forms.ModelForm):
     metadata_author = forms.ModelChoiceField(empty_label = "Person outside GeoNode (fill form)",
                                              label = "Metadata Author", required=False,
                                              queryset = Contact.objects.exclude(user=None))
-
+    keywords = taggit.forms.TagField()
     class Meta:
         model = Layer
         exclude = ('contacts','workspace', 'store', 'name', 'uuid', 'storeType', 'typename')
@@ -114,6 +117,7 @@ class PocForm(forms.Form):
 
 
 class MapForm(forms.ModelForm):
+    keywords = taggit.forms.TagField()
     class Meta:
         model = Map
         exclude = ('contact', 'zoom', 'projection', 'center_x', 'center_y', 'owner')
@@ -140,6 +144,12 @@ SERVICE_LEV_NAMES = {
     Service.LEVEL_READ  : _('Read Only'),
     Service.LEVEL_WRITE : _('Read/Write'),
     Service.LEVEL_ADMIN : _('Administrative')
+}
+COLLECTION_LEV_NAMES = {
+    Collection.LEVEL_NONE  : _('No Permissions'),
+    Collection.LEVEL_READ  : _('Read Only'),
+    Collection.LEVEL_WRITE : _('Read/Write'),
+    Collection.LEVEL_ADMIN : _('Administrative')
 }
 
 @transaction.commit_manually
@@ -185,6 +195,8 @@ def mapJSON(request, mapid):
                 mimetype="text/plain"
             )
         map = get_object_or_404(Map, pk=mapid)
+        if not request.user.has_perm('maps.change_map', obj=map):
+            return HttpResponse("You are not allowed to modify this map.", status=403)
         try:
             map.update_from_viewer(request.raw_post_data)
 
@@ -486,29 +498,23 @@ def view_map_permissions(request, mapid):
     ctx['map'] = map
     return render_to_response("maps/permissions.html", RequestContext(request, ctx))
 
-def set_layer_permissions(layer, perm_spec):
+def set_object_permissions(obj, perm_spec):
     if "authenticated" in perm_spec:
-        layer.set_gen_level(AUTHENTICATED_USERS, perm_spec['authenticated'])
+        obj.set_gen_level(AUTHENTICATED_USERS, perm_spec['authenticated'])
     if "anonymous" in perm_spec:
-        layer.set_gen_level(ANONYMOUS_USERS, perm_spec['anonymous'])
-    users = [n for (n, p) in perm_spec['users']]
-    layer.get_user_levels().exclude(user__username__in = users + [layer.owner]).delete()
-    for username, level in perm_spec['users']:
-        user = User.objects.get(username=username)
-        layer.set_user_level(user, level)
+        obj.set_gen_level(ANONYMOUS_USERS, perm_spec['anonymous'])
+    users_and_groups = [n for (n, p) in perm_spec['users']]
+    obj.get_user_levels().exclude(user__username__in = users_and_groups + [obj.owner]).delete()
+    obj.get_group_levels().exclude(group__name__in = users_and_groups).delete()
+    
+    for name, level in perm_spec['users']:
+        try:
+            group = Group.objects.get(name=name)
+            obj.set_group_level(group, level)
+        except Group.DoesNotExist:
+            user = User.objects.get(username=name)
+            obj.set_user_level(user, level)
 
-def set_map_permissions(m, perm_spec):
-    if "authenticated" in perm_spec:
-        m.set_gen_level(AUTHENTICATED_USERS, perm_spec['authenticated'])
-    if "anonymous" in perm_spec:
-        m.set_gen_level(ANONYMOUS_USERS, perm_spec['anonymous'])
-    users = [n for (n, p) in perm_spec['users']]
-    m.get_user_levels().exclude(user__username__in = users + [m.owner]).delete()
-    for username, level in perm_spec['users']:
-        user = User.objects.get(username=username)
-        m.set_user_level(user, level)
-
-from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement
 def ajax_layer_permissions(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
 
@@ -527,9 +533,10 @@ def ajax_layer_permissions(request, layername):
         )
 
     permission_spec = json.loads(request.raw_post_data)
-    set_layer_permissions(layer, permission_spec)
     setPaymentOptions (layer, permission_spec)
     setResourceLicenseAgreement(layer , permission_spec)
+    set_object_permissions(layer, permission_spec)
+
     return HttpResponse(
         "Permissions updated",
         status=200,
@@ -554,7 +561,7 @@ def ajax_map_permissions(request, mapid):
         )
 
     spec = json.loads(request.raw_post_data)
-    set_map_permissions(map, spec)
+    set_object_permissions(map, spec)
 
     # _perms = {
     #     Layer.LEVEL_READ: Map.LEVEL_READ,
@@ -642,7 +649,12 @@ def describemap(request, mapid):
         # Change metadata, return to map info page
         map_form = MapForm(request.POST, instance=map, prefix="map")
         if map_form.is_valid():
-            map_form.save()
+            map = map_form.save(commit=False)
+            if map_form.cleaned_data["keywords"]:
+                map.keywords.add(*map_form.cleaned_data["keywords"])
+            else:
+                map.keywords.clear()
+            map.save()
 
             return HttpResponseRedirect(reverse('geonode.maps.views.map_controller', args=(map.id,)))
     else:
@@ -664,6 +676,8 @@ def map_controller(request, mapid):
         return deletemap(request, mapid)
     if 'describe' in request.GET:
         return describemap(request, mapid)
+    if 'thumbnail' in request.GET:
+        return _handleThumbNail(request, Map.objects.get(pk=mapid))
     else:
         return mapdetail(request, mapid)
 
@@ -743,6 +757,7 @@ def layer_metadata(request, layername):
         if request.method == "POST" and layer_form.is_valid():
             new_poc = layer_form.cleaned_data['poc']
             new_author = layer_form.cleaned_data['metadata_author']
+            new_keywords = layer_form.cleaned_data['keywords']
 
             if new_poc is None:
                 poc_form = ContactForm(request.POST, prefix="poc")
@@ -758,6 +773,7 @@ def layer_metadata(request, layername):
                 the_layer = layer_form.save(commit=False)
                 the_layer.poc = new_poc
                 the_layer.metadata_author = new_author
+                the_layer.keywords.add(*new_keywords)
                 the_layer.save()
                 return HttpResponseRedirect("/data/" + layer.typename)
 
@@ -841,6 +857,7 @@ def layer_style(request, layername):
         return HttpResponse("Not allowed",status=403)
 
 
+@csrf_exempt
 def layer_detail(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
     if not request.user.has_perm('maps.view_layer', obj=layer):
@@ -871,6 +888,24 @@ def layer_detail(request, layername):
     }))
 
         
+def _handleThumbNail(req, obj):
+    if not req.user.has_perm('maps.change_maps', obj=obj) and not request.user.has_perm('maps.change_layer', obj=obj):
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
+                _("You are not permitted to modify this layer")})), status=401)
+    if req.method == 'GET':
+        thumb = Thumbnail.objects.get_thumbnail(obj,allow_null=False)
+        if thumb:
+            return HttpResponseRedirect(thumb.get_thumbnail_url())
+        else:
+            raise HttpResponse(status=404)
+    elif req.method == 'POST':
+        thumb = Thumbnail.objects.get_thumbnail(obj,allow_null=False)
+        thumb.thumb_spec = req.raw_post_data
+        thumb.generate_thumbnail()
+        thumb.save()
+        return HttpResponseRedirect(thumb.get_thumbnail_url())
+
 GENERIC_UPLOAD_ERROR = _("There was an error while attempting to upload your data. \
 Please try again, or contact and administrator if the problem continues.")
 
@@ -991,6 +1026,12 @@ def _view_perms_context(obj, level_names):
     ulevs.sort()
     ctx['users'] = ulevs
 
+    glevs = []
+    for g, l in ctx['groups'].items():
+        glevs.append([g, lname(l)])
+    glevs.sort()
+    ctx['groups'] = glevs
+    
     return ctx
 
 from anzsm.payment.utils import getPaymentOptions, getRecourseLicenseAgreement
@@ -999,7 +1040,7 @@ def _perms_info(obj, level_names):
     # these are always specified even if none
     info[ANONYMOUS_USERS] = info.get(ANONYMOUS_USERS, obj.LEVEL_NONE)
     info[AUTHENTICATED_USERS] = info.get(AUTHENTICATED_USERS, obj.LEVEL_NONE)
-    info['users'] = sorted(info['users'].items())
+    info['users'] = sorted(info['users'].items() + info['groups'].items())
     info['levels'] = [(i, level_names[i]) for i in obj.permission_levels]
     info['payment_options'] = getPaymentOptions(obj)
     licenseAgreement =  getRecourseLicenseAgreement(obj)
@@ -1117,14 +1158,19 @@ def layer_acls(request):
             
     all_readable = set()
     all_writable = set()
+    acl_objects = [acl_user] + [g for g in acl_user.groups.all()]
+
     for bck in get_auth_backends():
         if hasattr(bck, 'objects_with_perm'):
-            all_readable.update(bck.objects_with_perm(acl_user,
+            for acl_object in acl_objects:
+                all_readable.update(bck.objects_with_perm(acl_object,
                                                       'maps.view_layer',
                                                       Layer))
-            all_writable.update(bck.objects_with_perm(acl_user,
+            for acl_object in acl_objects:
+                all_writable.update(bck.objects_with_perm(acl_object,
                                                       'maps.change_layer', 
                                                       Layer))
+
     read_only = [x for x in all_readable if x not in all_writable]
     read_write = [x for x in all_writable if x in all_readable]
 
@@ -1266,6 +1312,7 @@ def metadata_search(request):
                 'delete': request.user.has_perm('maps.delete_layer', obj=layer),
                 'change_permissions': request.user.has_perm('maps.change_layer_permissions', obj=layer),
             }
+            thumbnail = Thumbnail.objects.get_thumbnail(layer)
         except Layer.DoesNotExist:
             doc['_local'] = False
             pass
@@ -1466,6 +1513,185 @@ def search_page(request):
         "site" : settings.SITEURL
     }))
 
+def new_search_page(request):
+    DEFAULT_MAP_CONFIG, DEFAULT_BASE_LAYERS = default_map_config()
+    #DEFAULT_MAP_CONFIG, DEFAULT_BASE_LAYERS = default_map_config(request)
+    # for non-ajax requests, render a generic search page
+
+    if request.method == 'GET':
+        params = request.GET
+    elif request.method == 'POST':
+        params = request.POST
+    else:
+        return HttpResponse(status=405)
+
+    map = Map(projection="EPSG:900913", zoom = 1, center_x = 0, center_y = 0)
+
+    counts = {
+        'maps' : Map.objects.count(),
+        'layers' : Layer.objects.count(),
+        'vector' : Layer.objects.filter(storeType='dataStore').count(),
+        'raster' : Layer.objects.filter(storeType='coverageStore').count(),
+        'users' : Contact.objects.count()
+    }
+
+    return render_to_response('maps/new_search.html', RequestContext(request, {
+        'init_search': json.dumps(params or {}),
+        #'viewer_config': json.dumps(map.viewer_json(added_layers=DEFAULT_BASE_LAYERS, authenticated=request.user.is_authenticated())),
+        'viewer_config': json.dumps(map.viewer_json(*DEFAULT_BASE_LAYERS)), 
+        'GOOGLE_API_KEY' : settings.GOOGLE_API_KEY,
+        "site" : settings.SITEURL,
+        'counts' : counts,
+        'keywords' : Layer.objects.gn_catalog.get_all_keywords()
+    }))
+
+def new_search_api(request):
+    if request.method == 'GET':
+        params = request.GET
+    elif request.method == 'POST':
+        params = request.POST
+    else:
+        return HttpResponse(status=405)
+
+    # grab params directly to implement defaults as
+    # opposed to panicy django forms behavior.
+    query = params.get('q', '')
+    try:
+        start = int(params.get('start', '0'))
+    except:
+        start = 0
+    try:
+        limit = min(int(params.get('limit', DEFAULT_MAPS_SEARCH_BATCH_SIZE)),
+                    MAX_MAPS_SEARCH_BATCH_SIZE)
+    except:
+        limit = DEFAULT_MAPS_SEARCH_BATCH_SIZE
+
+    sort_field, sort_asc = {
+        'newest' : ('last_modified',False),
+        'oldest' : ('last_modified',True),
+        'alphaaz' : ('title',True),
+        'alphaza' : ('title',False),
+
+    }[params.get('sort','newest')]
+
+    filters = {}
+    for k in ('bytype','kw'):
+        if k in params:
+            if params[k]:
+                filters[k] = params[k]
+
+    result = _new_search(query, start, limit, sort_field, sort_asc, **filters)
+
+    result['success'] = True
+    return HttpResponse(json.dumps(result), mimetype="application/json")
+
+def _combined_search_results(query):
+    # cache based on query key or universal cache key
+    from django.core.cache import cache
+    from time import time
+    cache_key = query and 'search_results_%s' % query or 'search_results_all'
+    cached_results = cache.get(cache_key)
+    if cached_results: return cached_results
+    ts = time()
+    
+    # @todo think about only caching geonetwork results since map queries will be fast
+    
+    map_query = Map.objects
+
+    if query:
+        keywords = _split_query(query)
+        for keyword in keywords:
+            map_query = map_query.filter(
+                  Q(title__icontains=keyword)
+                | Q(abstract__icontains=keyword))
+
+    results = []
+    
+    maps = list(map_query.all())
+    thumbs = Thumbnail.objects.get_thumbnails(maps)
+    for map in maps:
+        try:
+            owner_name = Contact.objects.get(user=map.owner).name
+        except:
+            owner_name = map.owner.first_name + " " + map.owner.last_name
+        thumb = thumbs.get(map.id, None)
+        # resolve any local layers and their keywords
+        local_kw = [ l.keywords.split(' ') for l in map.local_layers if l.keywords]
+        keywords = local_kw and list(set( reduce(lambda a,b: a+b, local_kw))) or []
+        mapdict = {
+            'id' : map.id,
+            'title' : map.title,
+            'abstract' : map.abstract,
+            'detail' : reverse('geonode.maps.views.map_controller', args=(map.id,)),
+            'owner' : owner_name,
+            'owner_detail' : reverse('profiles.views.profile_detail', args=(map.owner.username,)),
+            'last_modified' : map.last_modified.isoformat(),
+            '_type' : 'map',
+            '_display_type' : 'Map',
+            'thumb' : thumb and thumb.get_thumbnail_url() or None,
+            'keywords' : keywords
+            }
+        results.append(mapdict)
+        
+    layer_results = _metadata_search(query, 0, 1000)['rows']
+    
+    layers = list(Layer.objects.filter(uuid__in=[ doc['uuid'] for doc in layer_results ]))
+    thumbs = Thumbnail.objects.get_thumbnails(layers)
+    layers = dict([ (l.uuid,l) for l in layers])
+    for doc in layer_results:
+        layer = layers.get(doc['uuid'],None)
+        if layer is None: continue #@todo - remote layer (how to get last_modified?)
+        thumb = thumbs.get(layer.id,None)
+        doc['owner'] = layer.metadata_author.name
+        doc['thumb'] = thumb and thumb.get_thumbnail_url() or None
+        doc['last_modified'] = layer.date.isoformat()
+        doc['id'] = layer.id
+        doc['_type'] = 'layer'
+        doc['storeType'] = layer.storeType
+        doc['_display_type'] = layer.display_type
+        owner = layer.owner
+        if owner:
+            doc['owner_detail'] = reverse('profiles.views.profile_detail', args=(layer.owner.username,))
+        results.append(doc)
+        
+    # @todo search cache timeout in settings?
+    cache.set(cache_key,results,timeout=300)
+    logger.info('generated combined search cache in %s',time() - ts)
+    return results
+
+def _new_search(query, start, limit, sort_field, sort_asc, **filters):
+
+    results = _combined_search_results(query)
+
+    filter_fun = []
+    # careful when creating lambda or function filters inline like this
+    # as multiple filters cannot use the same local variable or they
+    # will overwrite each other
+    if 'bytype' in filters:
+        bytype = filters['bytype']
+        filter_fun.append(lambda r: r['_type'] == bytype or r.get('storeType',None) == bytype)
+    if 'kw' in filters:
+        kw = filters['kw']
+        filter_fun.append(lambda r: 'keywords' in r and kw in r['keywords'])
+
+    for fun in filter_fun:
+        results = filter(fun,results)
+
+    # default sort order by id (could be last_modified when external layers are dealt with)
+    results.sort(key=lambda r: r[sort_field or 'id'],reverse=not sort_asc)
+
+    totalQueryCount = len(results)
+    results = results[start:start+limit]
+    # unique item id for ext store (this could be done client side)
+    iid = start
+    for r in results:
+        r['iid'] = iid
+        iid += 1
+        
+    return {
+        'rows' : results,
+        'total' : totalQueryCount
+    }
 
 def change_poc(request, ids, template = 'maps/change_poc.html'):
     layers = Layer.objects.filter(id__in=ids.split('_'))
@@ -1629,7 +1855,7 @@ def batch_permissions(request):
 
     if request.method != "POST":
         return HttpResponse("Permissions API requires POST requests", status=405)
-
+    
     spec = json.loads(request.raw_post_data)
     
     if "layers" in spec:
@@ -1646,8 +1872,8 @@ def batch_permissions(request):
 
     anon_level = spec['permissions'].get("anonymous")
     auth_level = spec['permissions'].get("authenticated")
-    users = spec['permissions'].get('users', [])
-    user_names = [x for (x, y) in users]
+    users_and_groups = spec['permissions'].get('users', [])
+    users_and_groups_names = [x for (x, y) in users_and_groups]
 
     if "layers" in spec:
         lyrs = Layer.objects.filter(pk__in = spec['layers'])
@@ -1657,13 +1883,19 @@ def batch_permissions(request):
         if auth_level not in valid_perms:
             auth_level = "_none"
         for lyr in lyrs:
-            lyr.get_user_levels().exclude(user__username__in = user_names + [lyr.owner.username]).delete()
+            lyr.get_user_levels().exclude(user__username__in = users_and_groups_names + [lyr.owner.username]).delete()
+            lyr.get_group_levels().exclude(group__name__in = users_and_groups_names).delete()
             lyr.set_gen_level(ANONYMOUS_USERS, anon_level)
             lyr.set_gen_level(AUTHENTICATED_USERS, auth_level)
-            for user, user_level in users:
-                if user_level not in valid_perms:
-                    user_level = "_none"
-                lyr.set_user_level(user, user_level)
+            for name, level in users_and_groups:
+                if level not in valid_perms:
+                    level = "_none"
+                try:
+                    group = Group.objects.get(name=name)
+                    lyr.set_group_level(group, level)
+                except Group.DoesNotExist:
+                    user = User.objects.get(username=name)
+                    lyr.set_user_level(user, level)
 
     if "maps" in spec:
         maps = Map.objects.filter(pk__in = spec['maps'])
@@ -1676,14 +1908,26 @@ def batch_permissions(request):
         auth_level = auth_level.replace("layer", "map")
 
         for m in maps:
-            m.get_user_levels().exclude(user__username__in = user_names + [m.owner.username]).delete()
+            m.get_user_levels().exclude(user__username__in = users_and_groups_names + [m.owner.username]).delete()
+            m.get_group_levels().exclude(group__name__in = users_and_groups_names).delete()
             m.set_gen_level(ANONYMOUS_USERS, anon_level)
             m.set_gen_level(AUTHENTICATED_USERS, auth_level)
-            for user, user_level in spec['permissions'].get("users", []):
-                user_level = user_level.replace("layer", "map")
-                m.set_user_level(user, valid_perms.get(user_level, "_none"))
+            for name, level in spec['permissions'].get("users", []):
+                if level not in valid_perms:
+                    level = "_none"
+                level = level.replace("layer", "map")
+                try:
+                    group = Group.objects.get(name=name)
+                    m.set_group_level(group, level)
+                except Group.DoesNotExist:
+                    user = User.objects.get(username=name)
+                    m.set_user_level(user, level)
 
-    return HttpResponse("Not implemented yet")
+    return HttpResponse(
+        "Permissions updated",
+        status=200,
+        mimetype='text/plain'
+    )
 
 def batch_delete(request):
     if not request.user.is_authenticated:
@@ -1976,7 +2220,7 @@ def register_layers(request):
                             new_layer.owner = request.user
                             new_layer.save()
                             if perm_spec:
-                                set_layer_permissions(new_layer, perm_spec)
+                                set_object_permissions(new_layer, perm_spec)
                             else:
                                 pass # Will be assigned default perms
                             count += 1
@@ -2079,7 +2323,7 @@ def remove_service(request, service_id):
     '''
     service = get_object_or_404(Service,pk=service_id) 
 
-    if not request.user.has_perm('maps.remove_service', obj=service):
+    if not request.user.has_perm('maps.delete_service', obj=service):
         return HttpResponse(loader.render_to_string('401.html', 
             RequestContext(request, {'error_message': 
                 _("You are not permitted to remove this service.")})), status=401)
@@ -2131,5 +2375,83 @@ def service_layers(request, service_id):
 
 
 @login_required
-def ajax_service_permissions(request, service_id):    
-    return HttpResponse('Not Implemented (Yet)', status=501)
+def ajax_service_permissions(request, service_id):
+    service = get_object_or_404(Service,pk=service_id) 
+    if not request.user.has_perm("maps.change_service_permissions", obj=service):
+        return HttpResponse(
+            'You are not allowed to change permissions for this service',
+            status=401,
+            mimetype='text/plain'
+        )
+
+    if not request.method == 'POST':
+        return HttpResponse(
+            'You must use POST for editing service permissions',
+            status=405,
+            mimetype='text/plain'
+        )
+
+    spec = json.loads(request.raw_post_data)
+    set_object_permissions(service, spec)
+
+    return HttpResponse(
+        "Permissions updated",
+        status=200,
+        mimetype='text/plain'
+    )
+
+def collections(request):
+    collections = Collection.objects.all()
+    return render_to_response('maps/collection_set.html', RequestContext(request, {
+            'collections' : collections,
+        })) 
+
+def collection_detail(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    return render_to_response('maps/collection_detail.html', RequestContext(request, {
+            'collection' : collection,
+            'permissions_json': json.dumps(_perms_info(collection, COLLECTION_LEV_NAMES))
+        }))
+
+def collection_edit(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    return render_to_response('maps/collection_detail.html', RequestContext(request, {
+            'collection' : collection,
+        }))
+
+def collection_remove(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    return render_to_response('maps/collection_detail.html', RequestContext(request, {
+            'collection' : collection,
+        }))
+
+def collection_download(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    return render_to_response('maps/collection_detail.html', RequestContext(request, {
+            'collection' : collection,
+        }))
+
+def collection_ajax_permissions(request, slug):
+    collection = get_object_or_404(Collection, slug=slug)
+    if not request.user.has_perm("maps.change_collection_permissions", obj=collection):
+        return HttpResponse(
+            'You are not allowed to change permissions for this collection',
+            status=401,
+            mimetype='text/plain'
+        )
+
+    if not request.method == 'POST':
+        return HttpResponse(
+            'You must use POST for editing collection permissions',
+            status=405,
+            mimetype='text/plain'
+        )
+
+    spec = json.loads(request.raw_post_data)
+    set_object_permissions(collection, spec)
+
+    return HttpResponse(
+        "Permissions updated",
+        status=200,
+        mimetype='text/plain'
+    )

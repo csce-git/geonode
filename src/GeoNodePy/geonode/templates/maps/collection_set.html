@@ -1,0 +1,19 @@
+{% extends "page_layout.html" %}
+{% load i18n %}
+
+{% block title %} Collections  -  {{ block.super }} {% endblock %}
+
+{% block main %}
+<div class="twocol">
+{% if collections %}
+<h3>Collections</h3>
+<ul>
+{% for collection in collections %}
+<li><a href='{% url collection_detail collection.slug %}'>{{ collection.name }}</a></li>
+{% endfor %}
+</ul>
+{% else %}
+<h3>No Collections Found</h3>
+{% endif %}
+</div>
+{% endblock %}
