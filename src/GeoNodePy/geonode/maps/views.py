@@ -1,5 +1,5 @@
 from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
-from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole,Role, get_csw, search_history
+from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole, Role, Collection, get_csw, search_history
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
 from geonode import geonetwork
 import geoserver
@@ -140,6 +140,12 @@ SERVICE_LEV_NAMES = {
     Service.LEVEL_READ  : _('Read Only'),
     Service.LEVEL_WRITE : _('Read/Write'),
     Service.LEVEL_ADMIN : _('Administrative')
+}
+COLLECTION_LEV_NAMES = {
+    Collection.LEVEL_NONE  : _('No Permissions'),
+    Collection.LEVEL_READ  : _('Read Only'),
+    Collection.LEVEL_WRITE : _('Read/Write'),
+    Collection.LEVEL_ADMIN : _('Administrative')
 }
 
 @transaction.commit_manually
@@ -2135,3 +2141,70 @@ def service_layers(request, service_id):
 @login_required
 def ajax_service_permissions(request, service_id):    
     return HttpResponse('Not Implemented (Yet)', status=501)
+
+def collections(request):
+    collections = Collection.objects.all()
+    return render_to_response('maps/collection_set.html', RequestContext(request, {
+            'collections' : collections,
+        })) 
+
+def collection_detail(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    return render_to_response('maps/collection_detail.html', RequestContext(request, {
+            'collection' : collection,
+            'permissions_json': json.dumps(_perms_info(collection, COLLECTION_LEV_NAMES))
+        }))
+
+def collection_edit(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    return render_to_response('maps/collection_detail.html', RequestContext(request, {
+            'collection' : collection,
+        }))
+
+def collection_remove(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    return render_to_response('maps/collection_detail.html', RequestContext(request, {
+            'collection' : collection,
+        }))
+
+def collection_download(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    return render_to_response('maps/collection_detail.html', RequestContext(request, {
+            'collection' : collection,
+        }))
+
+def set_collection_permissions(collection, perm_spec):
+    if "authenticated" in perm_spec:
+        collection.set_gen_level(AUTHENTICATED_USERS, perm_spec['authenticated'])
+    if "anonymous" in perm_spec:
+        collection.set_gen_level(ANONYMOUS_USERS, perm_spec['anonymous'])
+    users = [n for (n, p) in perm_spec['users']]
+    collection.get_user_levels().exclude(user__username__in = users + [collection.owner]).delete()
+    for username, level in perm_spec['users']:
+        user = User.objects.get(username=username)
+        collection.set_user_level(user, level)
+
+def collection_ajax_permissions(request, slug):
+    collection = get_object_or_404(Collection,slug=slug) 
+    if not request.user.has_perm("maps.change_collection_permissions", obj=collection):
+        return HttpResponse(
+            'You are not allowed to change permissions for this collection',
+            status=401,
+            mimetype='text/plain'
+        )
+
+    if not request.method == 'POST':
+        return HttpResponse(
+            'You must use POST for editing collection permissions',
+            status=405,
+            mimetype='text/plain'
+        )
+
+    spec = json.loads(request.raw_post_data)
+    set_collection_permissions(collection, spec)
+
+    return HttpResponse(
+        "Permissions updated",
+        status=200,
+        mimetype='text/plain'
+    )

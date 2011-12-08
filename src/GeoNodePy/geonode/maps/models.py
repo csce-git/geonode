@@ -19,6 +19,7 @@ from datetime import datetime
 from django.contrib.auth.models import User, Permission
 from django.utils.translation import ugettext as _
 from django.core.exceptions import ValidationError
+from django.template.defaultfilters import slugify
 from string import lower
 from StringIO import StringIO
 from xml.etree.ElementTree import parse, XML
@@ -1909,6 +1910,52 @@ class search_history(models.Model):
     def __unicode__(self):
         return self.resource
 
+class Collection(models.Model, PermissionLevelMixin):
+    """
+    Collection Class for handling groups of Layers and/or Maps
+    """
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255)
+    description = models.TextField(null=True, blank=True)
+    owner = models.ForeignKey(User, blank=True, null=True)
+    layers = models.ManyToManyField(Layer, null=True, blank=True)
+    maps = models.ManyToManyField(Map, null=True, blank=True)
+
+    def get_absolute_url(self):
+        return '/collections/%s' % self.slug
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.slug = slugify(self.name)
+        super(Collection, self).save(*args, **kwargs)       
+ 
+    class Meta:
+        # custom permissions, 
+        # change and delete are standard in django
+        permissions = (('view_collection', 'Can view'), 
+                       ('change_collection_permissions', "Can change permissions"), )
+
+    # Permission Level Constants
+    # LEVEL_NONE inherited
+    LEVEL_READ  = 'collection_readonly'
+    LEVEL_WRITE = 'collection_readwrite'
+    LEVEL_ADMIN = 'collection_admin'
+                 
+    def set_default_permissions(self):
+        self.set_gen_level(ANONYMOUS_USERS, self.LEVEL_READ)
+        self.set_gen_level(AUTHENTICATED_USERS, self.LEVEL_READ) 
+
+        # remove specific user permissions
+        current_perms =  self.get_all_level_info()
+        for username in current_perms['users'].keys():
+            user = User.objects.get(username=username)
+            self.set_user_level(user, self.LEVEL_NONE)
+
+        # assign owner admin privs
+        if self.owner:
+            self.set_user_level(self.owner, self.LEVEL_ADMIN)
+
+
 def pre_delete_layer(instance, sender, **kwargs): 
     """
     Removes the layer from GeoServer and GeoNetwork
@@ -1951,7 +1998,14 @@ def create_user_profile(instance, sender, created, **kwargs):
         profile.name = instance.username
         profile.save()
 
+def post_save_collection(instance, sender, created, **kwargs):
+    if created:
+        instance.set_default_permissions()
+
 signals.pre_delete.connect(pre_delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
 signals.pre_delete.connect(pre_delete_service, sender=Service)
 signals.post_save.connect(create_user_profile, sender=User)
+signals.pre_delete.connect(delete_layer, sender=Layer)
+signals.post_save.connect(post_save_layer, sender=Layer)
+signals.post_save.connect(post_save_collection, sender=Collection)

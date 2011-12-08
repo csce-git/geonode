@@ -136,6 +136,48 @@
         ],
         "content_type": ["maps", "layer"]
     }
+},
+{
+    "pk": 7,
+    "model": "core.objectrole",
+    "fields": {
+        "codename": "collection_readonly",
+        "title": "Read Only",
+        "list_order": 0,
+        "permissions": [ 
+            ["view_collection", "maps", "collection"]
+        ],
+        "content_type": ["maps", "collection"]
+    }
+},
+{
+    "pk": 8,
+    "model": "core.objectrole",
+    "fields": {
+        "codename": "collection_readwrite",
+        "title": "Read/Write",
+        "list_order": 1,
+        "permissions": [ 
+            ["view_collection", "maps", "collection"],
+            ["change_collection", "maps", "collection"]
+        ],
+        "content_type": ["maps", "collection"]
+    }
+},
+{
+    "pk": 9,
+    "model": "core.objectrole",
+    "fields": {
+        "codename": "collection_admin",
+        "title": "Administrative",
+        "list_order": 2,
+        "permissions": [ 
+            ["view_collection", "maps", "collection"],
+            ["change_collection", "maps", "collection"],
+            ["delete_collection", "maps", "collection"],
+            ["change_collection_permissions", "maps", "collection"]
+        ],
+        "content_type": ["maps", "collection"]
+    }
 }
-
 ]
