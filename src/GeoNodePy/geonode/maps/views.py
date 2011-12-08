@@ -38,6 +38,7 @@ import logging
 import datetime
 import sys, traceback
 from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement
+import taggit
 
 logger = logging.getLogger("geonode.maps.views")
 
@@ -100,7 +101,7 @@ class LayerForm(forms.ModelForm):
     metadata_author = forms.ModelChoiceField(empty_label = "Person outside GeoNode (fill form)",
                                              label = "Metadata Author", required=False,
                                              queryset = Contact.objects.exclude(user=None))
-
+    keywords = taggit.forms.TagField()
     class Meta:
         model = Layer
         exclude = ('contacts','workspace', 'store', 'name', 'uuid', 'storeType', 'typename')
@@ -116,6 +117,7 @@ class PocForm(forms.Form):
 
 
 class MapForm(forms.ModelForm):
+    keywords = taggit.forms.TagField()
     class Meta:
         model = Map
         exclude = ('contact', 'zoom', 'projection', 'center_x', 'center_y', 'owner')
@@ -647,7 +649,12 @@ def describemap(request, mapid):
         # Change metadata, return to map info page
         map_form = MapForm(request.POST, instance=map, prefix="map")
         if map_form.is_valid():
-            map_form.save()
+            map = map_form.save(commit=False)
+            if map_form.cleaned_data["keywords"]:
+                map.keywords.add(*map_form.cleaned_data["keywords"])
+            else:
+                map.keywords.clear()
+            map.save()
 
             return HttpResponseRedirect(reverse('geonode.maps.views.map_controller', args=(map.id,)))
     else:
@@ -750,6 +757,7 @@ def layer_metadata(request, layername):
         if request.method == "POST" and layer_form.is_valid():
             new_poc = layer_form.cleaned_data['poc']
             new_author = layer_form.cleaned_data['metadata_author']
+            new_keywords = layer_form.cleaned_data['keywords']
 
             if new_poc is None:
                 poc_form = ContactForm(request.POST, prefix="poc")
@@ -765,6 +773,7 @@ def layer_metadata(request, layername):
                 the_layer = layer_form.save(commit=False)
                 the_layer.poc = new_poc
                 the_layer.metadata_author = new_author
+                the_layer.keywords.add(*new_keywords)
                 the_layer.save()
                 return HttpResponseRedirect("/data/" + layer.typename)
 
@@ -848,6 +857,7 @@ def layer_style(request, layername):
         return HttpResponse("Not allowed",status=403)
 
 
+@csrf_exempt
 def layer_detail(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
     if not request.user.has_perm('maps.view_layer', obj=layer):

@@ -261,7 +261,8 @@ INSTALLED_APPS = (
     'avatar',
     'agon_ratings',
     'dialogos',
-
+    'taggit',
+    'relationships',
     'geonode.core',
     'geonode.maps',
     'geonode.proxy',

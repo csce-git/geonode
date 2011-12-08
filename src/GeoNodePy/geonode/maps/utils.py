@@ -363,23 +363,21 @@ def save(layer, base_file, user, overwrite = True, title=None, abstract=None, pe
     # FIXME: Do this inside the layer object
     typename = gs_resource.store.workspace.name + ':' + gs_resource.name
     layer_uuid = str(uuid.uuid1())
-    saved_layer, created = Layer.objects.get_or_create(name=gs_resource.name, 
-                            defaults=dict(
-                                service = service,
-                                store=gs_resource.store.name,
-                                storeType=gs_resource.store.resource_type,
-                                typename=typename,
-                                workspace=gs_resource.store.workspace.name,
-                                title=title or gs_resource.title,
-                                uuid=layer_uuid,
-                                keywords=' '.join(keywords),
-                                abstract=abstract or gs_resource.abstract or '',
-                                owner=user,
-                            )
+    saved_layer, created = Layer.objects.get_or_create(name=gs_resource.name, defaults=dict(
+                                 store=gs_resource.store.name,
+                                 storeType=gs_resource.store.resource_type,
+                                 typename=typename,
+                                 workspace=gs_resource.store.workspace.name,
+                                 title=title or gs_resource.title,
+                                 uuid=layer_uuid,
+                                 abstract=abstract or gs_resource.abstract or '',
+                                 owner=user,
+                                 )
     )
 
     if created:
         saved_layer.set_default_permissions()
+        saved_layer.keywords.add(*keywords)
 
     # Step 9. Create the points of contact records for the layer
     # A user without a profile might be uploading this
