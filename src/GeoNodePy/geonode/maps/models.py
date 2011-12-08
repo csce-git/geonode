@@ -1898,6 +1898,17 @@ class ContactRole(models.Model):
     class Meta:
         unique_together = (("contact", "layer", "role"),)
 
+class search_history(models.Model):
+    search_keyword = models.CharField(max_length=100, db_column='search_keyword')
+    search_date = models.DateTimeField(db_column='search_date')
+    search_returned = models.PositiveIntegerField(db_column='search_returned');
+    
+    class Meta:
+        db_table = u'search_history'
+
+    def __unicode__(self):
+        return self.resource
+
 def pre_delete_layer(instance, sender, **kwargs): 
     """
     Removes the layer from GeoServer and GeoNetwork
@@ -1926,23 +1937,21 @@ def post_save_layer(instance, sender, **kwargs):
         instance._populate_from_gn()
         instance.save(force_update=True)
 
-class search_history(models.Model):
-    search_keyword = models.CharField(max_length=100, db_column='search_keyword')
-    search_date = models.DateTimeField(db_column='search_date')
-    search_returned = models.PositiveIntegerField(db_column='search_returned');
-    
-    class Meta:
-        db_table = u'search_history'
-
-    def __unicode__(self):
-        return self.resource
-
 def pre_delete_service(instance, sender, **kwargs):
     if instance.method == 'H':
         gn = Layer.objects.gn_catalog
         gn.control_harvesting_task('stop', [instance.external_id]) 
         gn.control_harvesting_task('remove', [instance.external_id]) 
 
+def create_user_profile(instance, sender, created, **kwargs):
+    try:
+        profile = Contact.objects.get(user=instance)
+    except Contact.DoesNotExist:
+        profile = Contact(user=instance)
+        profile.name = instance.username
+        profile.save()
+
 signals.pre_delete.connect(pre_delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
 signals.pre_delete.connect(pre_delete_service, sender=Service)
+signals.post_save.connect(create_user_profile, sender=User)
