@@ -1,0 +1,9 @@
+{% extends "page_layout.html" %}
+
+{% block main %}
+<ul>
+{% for notice in notices %}
+<li>{{ notice.message|safe }}</li>
+{% endfor %}
+</ul>
+{% endblock %}
