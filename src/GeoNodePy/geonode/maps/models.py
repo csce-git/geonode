@@ -29,14 +29,18 @@ from relationships.models import Relationship
 from notification import models as notification
 
 
-
 logger = logging.getLogger("geonode.maps.models")
 
 
 # Connect notice creation to new following relationships.
 def notify_on_follow(instance, sender, **kwargs):
-    notification.send([instance.to_user], "user_followed", {"from_user": instance.to_user})
-    logger.info("Notification sent from {0} to {1}".format(instance.to_user, instance.from_user))
+    if instance.status.verb == "follow":
+        notification.send([instance.to_user],
+                        "user_followed",
+                        {"from_user": instance.from_user, "user_url": instance.from_user.get_absolute_url()},
+                        on_site=True
+        )
+        logger.info("Notification sent from {0} to {1}".format(instance.to_user, instance.from_user))
 
 signals.post_save.connect(notify_on_follow, sender=Relationship)
 
