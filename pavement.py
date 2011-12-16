@@ -256,13 +256,13 @@ def setup_geonode_client(options):
     dst_zip.remove()
 
 @task
-@needs([
-    'sync_django_db'
-])
 def sync_django_db(options):
     sh("django-admin.py syncdb --settings=geonode.settings --noinput")
 
 @task
+@needs([
+    'sync_django_db'
+])
 def migrate_django_db(options):
     # Seed the initial migration for maps before letting South automatically go to the latest.
     # If this isn't done, the migrations fail due to some missing tables.
