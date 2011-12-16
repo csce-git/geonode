@@ -258,6 +258,7 @@ INSTALLED_APPS = (
     'registration',
     'idios',
     'avatar',
+    'south',
     'geonode.core',
     'geonode.maps',
     'geonode.people',
