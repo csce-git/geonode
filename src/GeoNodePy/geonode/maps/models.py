@@ -34,6 +34,11 @@ logger = logging.getLogger("geonode.maps.models")
 
 # Connect notice creation to new following relationships.
 def notify_on_follow(instance, sender, **kwargs):
+    """
+    Notify the followed user that they have a new follower.
+
+    This handler is present since the relationhip model itself doesn't send notifications.
+    """
     if instance.status.verb == "follow":
         notification.send([instance.to_user],
                         "user_followed",
