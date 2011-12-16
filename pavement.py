@@ -265,8 +265,8 @@ def sync_django_db(options):
 ])
 def migrate_django_db(options):
     # Seed the initial migration for maps before letting South automatically go to the latest.
-    # If this isn't done, the migrations fail due to some missing tables.
-    sh("django-admin.py migrate maps 0001_initial --settings=geonode.settings")
+    # This migration represents te state of the maps module before South was added to GeoNode.
+    sh("django-admin.py migrate maps 0001_initial --fake --settings=geonode.settings")
     # Do the rest of the maps migrations.
 
     sh("django-admin.py migrate maps --settings=geonode.settings")

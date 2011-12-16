@@ -116,13 +116,17 @@ linked from the main site, but can be accessed at http://localhost:8000/admin/
 Migrations
 ==========
 
-Django database migrations are managed with South.  To run migrations for all relevants apps after initial setup, use this command::
+Django database migrations are managed with South.
+
+To use South migrations, whether during an upgrade or in the course of development, run::
 
   paver migrate_django_db
 
-This will run syncdb prior to performing migrations.
+This will run syncdb prior to performing migrations, installing South if necessary.
 
 Any apps that are managed by South in this project use ``default_data.json`` as their initial data fixture, so as to avoid syncdb throwing errors when it tries to load an initial_data.json file for an app that's not been fully synced/migrated yet.
+
+If you are adding a new South app, be sure to add it's migration calls in the ``migrate_django_db`` function.
 
 Options
 =======
