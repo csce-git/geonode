@@ -1,6 +1,7 @@
 {% extends "page_layout.html" %}
 
 {% block main %}
+<a href="{% url notification_mark_all_seen %}">Mark all seen</a>
 <ul>
 {% for notice in notices %}
 <li>{{ notice.message|safe }}</li>
