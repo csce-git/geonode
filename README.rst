@@ -113,17 +113,16 @@ can be used to create additional administrative user accounts.  The administrati
 linked from the main site, but can be accessed at http://localhost:8000/admin/
 
 
-.. Contact/Profile Notes::
+Migrations
+==========
 
-    The GeoNode ``Contact`` model has been modified to use Idios in this branch.
-    
-    In terms of end user interface, there should be no difference.  
-    However, the existing column ``maps_contact.user`` was modified
-    to no longer accept null values.  The admin interface currently
-    uses the class name ``Profiles`` for this model.
-    
-    Also, a ``User Type`` field has been added.  This field does not
-    currently have an associated migration.
+Django database migrations are managed with South.  To run migrations for all relevants apps after initial setup, use this command::
+
+  paver migrate_django_db
+
+This will run syncdb prior to performing migrations.
+
+Any apps that are managed by South in this project use ``default_data.json`` as their initial data fixture, so as to avoid syncdb throwing errors when it tries to load an initial_data.json file for an app that's not been fully synced/migrated yet.
 
 Options
 =======

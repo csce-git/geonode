@@ -230,6 +230,7 @@ def setup_webapps(options):
     'setup_webapps',
     'generate_geoserver_token',
     'sync_django_db',
+    'migrate_django_db',
     'package_client'
 ])
 def build(options):
@@ -255,8 +256,24 @@ def setup_geonode_client(options):
     dst_zip.remove()
 
 @task
+@needs([
+    'sync_django_db'
+])
 def sync_django_db(options):
     sh("django-admin.py syncdb --settings=geonode.settings --noinput")
+
+@task
+def migrate_django_db(options):
+    # Seed the initial migration for maps before letting South automatically go to the latest.
+    # If this isn't done, the migrations fail due to some missing tables.
+    sh("django-admin.py migrate maps 0001_initial --settings=geonode.settings")
+    # Do the rest of the maps migrations.
+
+    sh("django-admin.py migrate maps --settings=geonode.settings")
+    sh("django-admin.py migrate people --settings=geonode.settings")
+
+    # Load the default fixtures for the migrated apps
+    sh("django-admin.py loaddata default_data --settings=geonode.settings")
 
 @task
 def generate_geoserver_token(options):
