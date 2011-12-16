@@ -25,8 +25,21 @@ from xml.etree.ElementTree import parse, XML
 from gs_helpers import cascading_delete
 import logging
 import sys
+from relationships.models import Relationship
+from notification import models as notification
+
+
 
 logger = logging.getLogger("geonode.maps.models")
+
+
+# Connect notice creation to new following relationships.
+def notify_on_follow(instance, sender, **kwargs):
+    notification.send([instance.to_user], "user_followed", {"from_user": instance.to_user})
+    logger.info("Notification sent from {0} to {1}".format(instance.to_user, instance.from_user))
+
+signals.post_save.connect(notify_on_follow, sender=Relationship)
+
 
 
 def bbox_to_wkt(x0, x1, y0, y1, srid="4326"):

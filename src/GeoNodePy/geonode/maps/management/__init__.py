@@ -7,6 +7,8 @@ if "notification" in settings.INSTALLED_APPS:
     
     def create_notice_types(app, created_models, verbosity, **kwargs):
         notification.create_notice_type("map_create", _("Map Created"), _("someone has created a map"))
+        notification.create_notice_type("user_followed", _("Followed"), _("someone has followed you"))
+        print "Created notifications"
         
     signals.post_syncdb.connect(create_notice_types, sender=notification)
 else:
