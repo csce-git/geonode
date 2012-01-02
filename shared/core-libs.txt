@@ -20,3 +20,4 @@ coverage==3.4
 -e git+https://github.com/cmheisel/nose-xcover.git#egg=nosexcover
 mock
 django-staticfiles
+South==0.7.3
