@@ -263,12 +263,15 @@ def sync_django_db(options):
 @needs([
     'sync_django_db'
 ])
+@cmdopts([
+    ("fake", "f", "Flag that specificies whether to fake database migrations or not. Should be used if you have an existing, non-South-based install.")
+])
 def migrate_django_db(options):
-    # Seed the initial migration for maps before letting South automatically go to the latest.
-    # This migration represents te state of the maps module before South was added to GeoNode.
-    sh("django-admin.py migrate maps 0001_initial --fake --settings=geonode.settings")
-    # Do the rest of the maps migrations.
-
+    # Do fake migrations, since we have an existing copy of the database that needs to be ported.
+    if hasattr(options, "fake"):
+        # This migration represents te state of the maps module before South was added to GeoNode.
+        sh("django-admin.py migrate maps 0001_initial --fake --settings=geonode.settings")
+        
     sh("django-admin.py migrate maps --settings=geonode.settings")
     sh("django-admin.py migrate people --settings=geonode.settings")
 
