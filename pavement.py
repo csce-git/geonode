@@ -272,11 +272,19 @@ def migrate_django_db(options):
         # This migration represents te state of the maps module before South was added to GeoNode.
         sh("django-admin.py migrate maps 0001_initial --fake --settings=geonode.settings")
         
-    sh("django-admin.py migrate maps --settings=geonode.settings")
-    sh("django-admin.py migrate people --settings=geonode.settings")
-
-    # Load the default fixtures for the migrated apps
-    sh("django-admin.py loaddata default_data --settings=geonode.settings")
+    # Apps that need to be migrated.
+    # The order in this list does matter; dependencies have to be placed first.
+    MIGRATED_APPS = [
+        "maps",
+        "people",
+    ]
+    
+    for app_name in MIGRATED_APPS:
+        # Run the migrations
+        sh("django-admin.py migrate %s --settings=geonode.settings" % app_name)
+        
+        # Load the default fixtures
+        sh("django-admin.py loaddata %s --settings=geonode.settings" % app_name)
 
 @task
 def generate_geoserver_token(options):
