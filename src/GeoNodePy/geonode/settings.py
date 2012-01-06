@@ -258,12 +258,19 @@ INSTALLED_APPS = (
     'profiles',
     'avatar',
     'taggit',
+    'actstream',
     'geonode.core',
     'geonode.maps',
     'geonode.proxy',
     'geonode.groups',
     'geonode'
 )
+
+# List of models that actstream can take action on.
+ACTSTREAM_ACTION_MODELS = [
+        "auth.User",
+        "groups.Group",
+]
 
 def get_user_url(u):
     from django.contrib.sites.models import Site
