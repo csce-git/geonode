@@ -4,7 +4,7 @@
 {% include "geonode/app_header.html" %}
 {{ block.super }}
 {% endblock %}
-{% load i18n avatar_tags %}
+{% load i18n avatar_tags activity_tags %}
 
 {% block content %}
     <div class="threecol">
@@ -21,6 +21,12 @@
                   {% csrf_token %}
                   <input type="submit" value="Join" />
               </form>
+              <a href="{% activity_follow_url object %}" id="followbutton">
+                  <span>
+                      {% activity_follow_label object Unfollow Follow %}
+                  </span>
+              </a>
+
           {% else %}
               {# @@@ what is the correct behavior here? #}
               <p>Log in to join this group</p>
@@ -55,4 +61,33 @@
         </div>
 
     </div>
+
+<script>
+        Ext.onReady(function () {
+            var followBtn = Ext.get("followbutton");
+
+            followBtn.on('click', function () {
+
+                Ext.Ajax.request({
+                    url: followBtn.getAttribute("href"),
+                    success: function (response, opts) {
+                        switch(response.status)
+                        {
+                            case 201:
+                                followBtn.child("span").update("Unfollow");
+                                followBtn.dom.href = followBtn.getAttribute("href").replace("follow", "unfollow");
+                                break;
+                            case 204:
+                                followBtn.child("span").update("Follow");
+                                followBtn.dom.href = followBtn.getAttribute("href").replace("unfollow", "follow");
+                                break;
+                            default:
+                        }
+                    },
+                    method: "POST",
+                });
+            }, this, {stopEvent: true});
+        });
+    </script>
 {% endblock %}
+
