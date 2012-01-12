@@ -1,4 +1,4 @@
-{% extends "profiles/base.html" %}
+{% extends "idios/base.html" %}
 {% block head %}
 {% include "geonode/ext_header.html" %}
 {% include "geonode/app_header.html" %}
@@ -18,7 +18,7 @@
   </ul>
   <h3>{% trans "Settings" %}</h3>
   <ul>
-    <li><a href="{% url profiles_edit_profile %}">{% trans "Edit profile information" %}</a></li>
+    <li><a href="{% url profile_edit %}">{% trans "Edit profile information" %}</a></li>
   </ul>
   <h3>{% trans "Manage Connections" %}</h3>
   <ul>
@@ -34,11 +34,11 @@
   {% endif %}
   <h3>Following</h3>
   {% for u in profile.user.relationships.following %}
-      <a href="{% url profiles_profile_detail u %}">{% avatar u 65 %}</a>
+      <a href="{% url profile_detail u %}">{% avatar u 65 %}</a>
   {% endfor %}
   <h3>Followers</h3>
   {% for u in profile.user.relationships.followers %}
-      <a href="{% url profiles_profile_detail u %}">{% avatar u 65 %}</a>
+      <a href="{% url profile_detail u %}">{% avatar u 65 %}</a>
   {% endfor %}
 </div>
 {% endblock %}
@@ -280,7 +280,7 @@ Ext.onReady(function() {
         follow_url = follow_url === follow_add_url ? follow_remove_url : follow_add_url;
         follow_text = follow_text === follow_add_text ? follow_remove_text : follow_add_text;
 
-        linkTag.href = follow_url;
+        linkTag.dom.href = follow_url;
         linkTag.update(follow_text);
     }
 
@@ -288,7 +288,7 @@ Ext.onReady(function() {
         block_url = block_url === block_add_url ? block_remove_url : block_add_url;
         block_text = block_text === block_add_text ? block_remove_text : block_add_text;
 
-        linkTag.href = block_url;
+        linkTag.dom.href = block_url;
         linkTag.update(block_text);
     }
 
@@ -296,26 +296,31 @@ Ext.onReady(function() {
     dh.append(blocking_div, blocking_link);
     dh.append(following_div, following_link);
 
+    var following_link = Ext.get("following_link"),
+        blocking_link = Ext.get("blocking_link");
+
     // Act on the following link.
-    Ext.get("following_link").on("click", function (evt, el, o) {
-        evt.preventDefault();
+    following_link.on("click", function (evt, el, o) {
         Ext.Ajax.request({
             method: "POST",
             url: follow_url,
-            defaultHeaders: {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
+            defaultHeaders: {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"},
+            success: function (response, obj) {
+                toggleFollowLink(following_link);
+            }
         });
-        toggleFollowLink(Ext.get(this));
-    });
+    }, following_link, {preventDefault: true});
 
-    Ext.get("blocking_link").on("click", function (evt, el, o) {
-        evt.preventDefault();
+    blocking_link.on("click", function (evt, el, o) {
         Ext.Ajax.request({
             method: "POST",
             url: block_url,
-            defaultHeaders: {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
+            defaultHeaders: {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"},
+            success: function (response, obj) {
+                toggleBlockLink(blocking_link);
+            }
         });
-        toggleBlockLink(Ext.get(this));
-    });
+    }, blocking_link, {preventDefault: true});
     {% endif %}
 });
 </script>

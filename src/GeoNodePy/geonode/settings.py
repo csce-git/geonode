@@ -121,6 +121,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.media",
     "django.core.context_processors.request",
     "geonode.maps.context_processors.resource_urls",
+    "django.core.context_processors.request",
 )
 
 MIDDLEWARE_CLASSES = (
@@ -129,6 +130,7 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'cbv.middleware.DeferredRenderingMiddleware',
 )
 
 # This isn't required for running the geonode site, but it when running sites that inherit the geonode.settings module.
@@ -226,29 +228,37 @@ INSTALLED_APPS = (
     'staticfiles',
     'django_extensions',
     'registration',
-    'profiles',
+    'idios',
     'avatar',
+
     'agon_ratings',
     'dialogos',
     'taggit',
     'relationships',
+    'announcements',
+    'notification',
+    'user_messages',
+    'crispy_forms',
+
     'geonode.core',
     'geonode.maps',
+    'geonode.people',
     'geonode.proxy',
+    'geonode.groups',
     'geonode'
 )
 
 def get_user_url(u):
     from django.contrib.sites.models import Site
     s = Site.objects.get_current()
-    return "http://" + s.domain + "/profiles/" + u.username
+    return "http://" + s.domain + "/profiles/profile" + u.username
 
 
 ABSOLUTE_URL_OVERRIDES = {
     'auth.user': get_user_url
 }
 
-AUTH_PROFILE_MODULE = 'maps.Contact'
+AUTH_PROFILE_MODULE = 'people.Contact'
 REGISTRATION_OPEN = False
 
 SERVE_MEDIA = DEBUG;
