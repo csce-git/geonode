@@ -144,6 +144,7 @@
         "content_type": ["maps", "collection"]
     }
 },
+{
     "pk": 10,
     "model": "core.objectrole",
     "fields": {
