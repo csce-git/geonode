@@ -804,6 +804,11 @@ def setMetaDataMandatoryFields(layer_form):
         layer_form.fields['metadata_author'].required = True
     if  layer_form.base_fields['abstract'] != None:
         layer_form.base_fields['abstract'].required = True
+    if  layer_form.base_fields['keywords'] != None:
+        layer_form.base_fields['keywords'].required = False
+    if  layer_form.fields['keywords'] != None:
+        layer_form.fields['keywords'].required = False
+            
     return layer_form
     
 @csrf_exempt
