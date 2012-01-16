@@ -774,7 +774,8 @@ def layer_metadata(request, layername):
             layer_form.fields['metadata_author'].initial = metadata_author.id
             author_form = ContactForm(prefix="author")
             author_form.hidden=True
-
+        layer_form = setMetaDataMandatoryFields (layer_form)
+        
         return render_to_response("maps/layer_describe.html", RequestContext(request, {
             "layer": layer,
             "layer_form": layer_form,
@@ -784,6 +785,25 @@ def layer_metadata(request, layername):
     else: 
         return HttpResponse("Not allowed", status=403)
 
+def setMetaDataMandatoryFields(layer_form):
+    if layer_form.fields['service'] != None:
+        layer_form.fields['service'].required = True
+        layer_form.fields['service'].empty_label = None
+    if  layer_form.fields['title'] != None:
+        layer_form.fields['title'].required = True
+    if  layer_form.fields['abstract'] != None:
+        layer_form.fields['abstract'].required = True
+    if  layer_form.fields['poc'] != None:
+        layer_form.fields['poc'].required = True
+    if  layer_form.fields['topic_category'] != None:
+        layer_form.fields['topic_category'].required = True
+    if  layer_form.fields['owner'] != None:
+        layer_form.fields['owner'].required = True
+        layer_form.fields['owner'].empty_label = None 
+    if  layer_form.fields['metadata_author'] != None:
+        layer_form.fields['metadata_author'].required = True
+    return layer_form
+    
 @csrf_exempt
 def layer_remove(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
@@ -1002,6 +1022,7 @@ def _perms_info(obj, level_names):
     info['users'] = sorted(info['users'].items())
     info['levels'] = [(i, level_names[i]) for i in obj.permission_levels]
     info['payment_options'] = getPaymentOptions(obj)
+
     licenseAgreement =  getRecourseLicenseAgreement(obj)
     if (licenseAgreement is not None):
         info['license_id'] = getRecourseLicenseAgreement(obj).payment_license.id
