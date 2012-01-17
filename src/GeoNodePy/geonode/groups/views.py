@@ -12,6 +12,8 @@ from geonode.groups.models import Group, GroupInvitation
 
 from geonode.maps.models import Layer, Map, GroupLayer, GroupMap
 
+from actstream import action
+
 
 def group_list(request):
     ctx = {
@@ -67,6 +69,18 @@ def group_detail(request, slug):
     maps = GroupMap.maps_for_group(group)
     layers = GroupLayer.layers_for_group(group)
     
+    if request.method == "POST":
+        if group.user_is_member(request.user):
+            group.leave(request.user)
+            if group.access != "private":
+                action.send(request.user, verb="left", target=group)
+        else:
+            group.join(request.user)
+            if group.access != "private":
+                action.send(request.user, verb="joined", target=group)
+                
+        return redirect("group_detail", group.slug)
+        
     ctx = {
         "object": group,
         "maps": maps,
