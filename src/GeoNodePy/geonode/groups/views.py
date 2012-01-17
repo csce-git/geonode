@@ -31,6 +31,8 @@ def group_create(request):
             group = form.save(commit=False)
             group.save()
             group.join(request.user, role="manager")
+            if group.access != "private":
+                action.send(request.user, verb="created", target=group)
             return redirect("group_detail", group.slug)
     else:
         form = GroupForm()
