@@ -53,6 +53,8 @@ def group_update(request, slug):
         if form.is_valid():
             group = form.save(commit=False)
             group.save()
+            if group.access != "private":
+                action.send(request.user, verb="updated", target=group)
             return redirect("group_detail", group.slug)
     else:
         form = GroupForm(instance=group)
