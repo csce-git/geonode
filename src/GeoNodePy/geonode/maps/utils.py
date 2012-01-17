@@ -394,8 +394,8 @@ def save(layer, base_file, user, overwrite = True, title=None, abstract=None, pe
     # FIXME: Do this as part of the post_save hook
     logger.info('>>> Step 11. Setting default permissions for [%s]', name)
     if permissions is not None:
-        from geonode.maps.views import set_layer_permissions
-        set_layer_permissions(saved_layer, permissions)
+        from geonode.maps.views import set_object_permissions
+        set_object_permissions(saved_layer, permissions)
 
     # Step 12. Verify the layer was saved correctly and clean up if needed
     logger.info('>>> Step 12. Verifying the layer [%s] was created correctly' % name)
