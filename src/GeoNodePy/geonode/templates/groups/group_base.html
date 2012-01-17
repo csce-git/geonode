@@ -41,6 +41,10 @@
         {% if is_member %}
         <p>
         <h3>Actions</h3>
+        <form method="POST" action="">
+            {% csrf_token %}
+            <input type="submit" value="Leave" />
+        </form>
         <ul>
           {% if is_manager %}
             <li><a href="{% url group_update object.slug %}">Edit Group Details</a></li>
@@ -109,4 +113,5 @@
         });
     </script>
 {% endblock %}
+
 
