@@ -20,7 +20,7 @@ from django.template import RequestContext, loader
 from django.utils.translation import ugettext as _
 import json
 import math
-import httplib2 
+import httplib2
 from owslib.csw import CswRecord, namespaces
 from owslib.util import nspath
 import re
@@ -51,7 +51,7 @@ def default_map_config():
     _DEFAULT_MAP_CENTER = _project_center(settings.DEFAULT_MAP_CENTER)
 
     _default_map = Map(
-        title=DEFAULT_TITLE, 
+        title=DEFAULT_TITLE,
         abstract=DEFAULT_ABSTRACT,
         projection="EPSG:900913",
         center_x=_DEFAULT_MAP_CENTER[0],
@@ -86,7 +86,7 @@ class LayerForm(forms.ModelForm):
     date.widget.widgets[1].attrs = {"class":"time"}
     temporal_extent_start = forms.DateField(required=False,widget=forms.DateInput(attrs={"class":"date"}))
     temporal_extent_end = forms.DateField(required=False,widget=forms.DateInput(attrs={"class":"date"}))
-    
+
     poc = forms.ModelChoiceField(empty_label = "Person outside GeoNode (fill form)",
                                  label = "Point Of Contact", required=False,
                                  queryset = Contact.objects.exclude(user=None))
@@ -132,7 +132,7 @@ LAYER_LEV_NAMES = {
     Layer.LEVEL_ADMIN : _('Administrative')
 }
 
-@transaction.commit_manually
+
 def maps(request, mapid=None):
     if request.method == 'GET':
         return render_to_response('maps.html', RequestContext(request))
@@ -143,28 +143,29 @@ def maps(request, mapid=None):
                 mimetype="text/plain",
                 status=401
             )
-        try: 
-            map = Map(owner=request.user, zoom=0, center_x=0, center_y=0)
-            map.save()
-            map.set_default_permissions()
-            map.update_from_viewer(request.raw_post_data)
-            response = HttpResponse('', status=201)
-            response['Location'] = map.id
-            transaction.commit()
-            return response
-        except Exception, e:
-            transaction.rollback()
-            return HttpResponse(
-                "The server could not understand your request." + str(e),
-                status=400, 
-                mimetype="text/plain"
-            )
+        with transaction.commit_manually:
+            try:
+                map = Map(owner=request.user, zoom=0, center_x=0, center_y=0)
+                map.save()
+                map.set_default_permissions()
+                map.update_from_viewer(request.raw_post_data)
+                response = HttpResponse('', status=201)
+                response['Location'] = map.id
+                transaction.commit()
+                return response
+            except Exception, e:
+                transaction.rollback()
+                return HttpResponse(
+                    "The server could not understand your request." + str(e),
+                    status=400,
+                    mimetype="text/plain"
+                )
 
 def mapJSON(request, mapid):
     if request.method == 'GET':
-        map = get_object_or_404(Map,pk=mapid) 
+        map = get_object_or_404(Map,pk=mapid)
         if not request.user.has_perm('maps.view_map', obj=map):
-            return HttpResponse(loader.render_to_string('401.html', 
+            return HttpResponse(loader.render_to_string('401.html',
                 RequestContext(request, {})), status=401)
     	return HttpResponse(json.dumps(map.viewer_json()))
     elif request.method == 'PUT':
@@ -179,7 +180,7 @@ def mapJSON(request, mapid):
             map.update_from_viewer(request.raw_post_data)
 
             return HttpResponse(
-                "Map successfully updated.", 
+                "Map successfully updated.",
                 mimetype="text/plain",
                 status=204
             )
@@ -192,10 +193,10 @@ def mapJSON(request, mapid):
 
 def newmap_config(request):
     '''
-    View that creates a new map.  
-    
+    View that creates a new map.
+
     If the query argument 'copy' is given, the inital map is
-    a copy of the map with the id specified, otherwise the 
+    a copy of the map with the id specified, otherwise the
     default map configuration is used.  If copy is specified
     and the map specified does not exist a 404 is returned.
     '''
@@ -204,10 +205,10 @@ def newmap_config(request):
     if request.method == 'GET' and 'copy' in request.GET:
         mapid = request.GET['copy']
         map = get_object_or_404(Map,pk=mapid)
-        
+
         if not request.user.has_perm('maps.view_map', obj=map):
-            return HttpResponse(loader.render_to_string('401.html', 
-                RequestContext(request, {'error_message': 
+            return HttpResponse(loader.render_to_string('401.html',
+                RequestContext(request, {'error_message':
                     _("You are not permitted to view or copy this map.")})), status=401)
 
         map.abstract = DEFAULT_ABSTRACT
@@ -222,7 +223,7 @@ def newmap_config(request):
             params = request.POST
         else:
             return HttpResponse(status=405)
-        
+
         if 'layer' in params:
             bbox = None
             map = Map(projection="EPSG:900913")
@@ -231,13 +232,13 @@ def newmap_config(request):
                 try:
                     layer = Layer.objects.get(typename=layer_name)
                 except ObjectDoesNotExist:
-                    # bad layer, skip 
+                    # bad layer, skip
                     continue
 
                 if not request.user.has_perm('maps.view_layer', obj=layer):
                     # invisible layer, skip inclusion
                     continue
-                    
+
                 layer_bbox = layer.resource.latlon_bbox
                 # assert False, str(layer_bbox)
                 if bbox is None:
@@ -247,7 +248,7 @@ def newmap_config(request):
                     bbox[1] = max(bbox[1], layer_bbox[1])
                     bbox[2] = min(bbox[2], layer_bbox[2])
                     bbox[3] = max(bbox[3], layer_bbox[3])
-                
+
                 layers.append(MapLayer(
                     map = map,
                     name = layer.typename,
@@ -276,21 +277,21 @@ def newmap_config(request):
                 map.center_y = center.y
                 map.zoom = math.ceil(min(width_zoom, height_zoom))
 
-            
+
             config = map.viewer_json(*(DEFAULT_BASE_LAYERS + layers))
             config['fromLayer'] = True
         else:
             config = DEFAULT_MAP_CONFIG
     return json.dumps(config)
 
-@csrf_exempt            
+@csrf_exempt
 def newmap(request):
     config = newmap_config(request);
     if isinstance(config, HttpResponse):
         return config;
     else:
         return render_to_response('maps/view.html', RequestContext(request, {
-            'config': config, 
+            'config': config,
             'GOOGLE_API_KEY' : settings.GOOGLE_API_KEY,
             'GEOSERVER_BASE_URL' : settings.GEOSERVER_BASE_URL
         }))
@@ -309,12 +310,12 @@ h.add_credentials(_user, _password)
 _netloc = urlparse(settings.GEOSERVER_BASE_URL).netloc
 h.authorizations.append(
     httplib2.BasicAuthentication(
-        (_user, _password), 
+        (_user, _password),
         _netloc,
         settings.GEOSERVER_BASE_URL,
         {},
         None,
-        None, 
+        None,
         h
     )
 )
@@ -322,17 +323,17 @@ h.authorizations.append(
 
 @login_required
 def map_download(request, mapid):
-    """ 
+    """
     Download all the layers of a map as a batch
-    XXX To do, remove layer status once progress id done 
-    This should be fix because 
-    """ 
+    XXX To do, remove layer status once progress id done
+    This should be fix because
+    """
     mapObject = get_object_or_404(Map,pk=mapid)
     if not request.user.has_perm('maps.view_map', obj=mapObject):
         return HttpResponse(_('Not Permitted'), status=401)
 
     map_status = dict()
-    if request.method == 'POST': 
+    if request.method == 'POST':
         url = "%srest/process/batchDownload/launch/" % settings.GEOSERVER_BASE_URL
 
         def perm_filter(layer):
@@ -345,14 +346,14 @@ def map_download(request, mapid):
         if resp.status not in (400, 404, 417):
             map_status = json.loads(content)
             request.session["map_status"] = map_status
-        else: 
+        else:
             pass # XXX fix
 
     if request.method == 'GET':
         if "map_status" in request.session and type(request.session["map_status"]) == dict:
             msg = "You already started downloading a map"
-        else: 
-            msg = "You should download a map" 
+        else:
+            msg = "You should download a map"
 
     locked_layers = []
     remote_layers = []
@@ -378,23 +379,23 @@ def map_download(request, mapid):
          "geoserver" : settings.GEOSERVER_BASE_URL,
          "site" : settings.SITEURL
     }))
-    
+
 
 def check_download(request):
     """
     this is an endpoint for monitoring map downloads
     """
     try:
-        layer = request.session["map_status"] 
+        layer = request.session["map_status"]
         if type(layer) == dict:
             url = "%srest/process/batchDownload/status/%s" % (settings.GEOSERVER_BASE_URL,layer["id"])
             resp,content = h.request(url,'GET')
             status= resp.status
             if resp.status == 400:
                 return HttpResponse(content="Something went wrong",status=status)
-        else: 
-            content = "Something Went wrong" 
-            status  = 400 
+        else:
+            content = "Something Went wrong"
+            status  = 400
     except ValueError:
         # TODO: Is there any useful context we could include in this log?
         logger.warn("User tried to check status, but has no download in progress.")
@@ -405,27 +406,27 @@ def check_download(request):
 def batch_layer_download(request):
     """
     batch download a set of layers
-    
+
     POST - begin download
     GET?id=<download_id> monitor status
     """
 
-    # currently this just piggy-backs on the map download backend 
+    # currently this just piggy-backs on the map download backend
     # by specifying an ad hoc map that contains all layers requested
     # for download. assumes all layers are hosted locally.
     # status monitoring is handled slightly differently.
-    
+
     if request.method == 'POST':
         layers = request.POST.getlist("layer")
         layers = Layer.objects.filter(typename__in=list(layers))
 
         def layer_son(layer):
             return {
-                "name" : layer.typename, 
-                "service" : layer.service_type, 
+                "name" : layer.typename,
+                "service" : layer.service_type,
                 "metadataURL" : "",
                 "serviceURL" : ""
-            } 
+            }
 
         readme = """This data is provided by GeoNode.
 
@@ -445,7 +446,7 @@ Contents:
         resp, content = h.request(url,'POST',body=json.dumps(fake_map))
         return HttpResponse(content, status=resp.status)
 
-    
+
     if request.method == 'GET':
         # essentially, this just proxies back to geoserver
         download_id = request.GET.get('id', None)
@@ -459,11 +460,11 @@ Contents:
 
 
 def view_map_permissions(request, mapid):
-    map = get_object_or_404(Map,pk=mapid) 
+    map = get_object_or_404(Map,pk=mapid)
 
     if not request.user.has_perm('maps.change_map_permissions', obj=map):
-        return HttpResponse(loader.render_to_string('401.html', 
-            RequestContext(request, {'error_message': 
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
                 _("You are not permitted to view this map's permissions")})), status=401)
 
     ctx = _view_perms_context(map, MAP_LEV_NAMES)
@@ -567,11 +568,11 @@ def ajax_map_permissions(request, mapid):
 @login_required
 def deletemap(request, mapid):
     ''' Delete a map, and its constituent layers. '''
-    map = get_object_or_404(Map,pk=mapid) 
+    map = get_object_or_404(Map,pk=mapid)
 
     if not request.user.has_perm('maps.delete_map', obj=map):
-        return HttpResponse(loader.render_to_string('401.html', 
-            RequestContext(request, {'error_message': 
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
                 _("You are not permitted to delete this map.")})), status=401)
 
     if request.method == 'GET':
@@ -586,21 +587,21 @@ def deletemap(request, mapid):
 
         return HttpResponseRedirect(reverse("geonode.maps.views.maps"))
 
-def mapdetail(request,mapid): 
+def mapdetail(request,mapid):
     '''
     The view that show details of each map
     '''
     map = get_object_or_404(Map,pk=mapid)
     if not request.user.has_perm('maps.view_map', obj=map):
-        return HttpResponse(loader.render_to_string('401.html', 
-            RequestContext(request, {'error_message': 
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
                 _("You are not allowed to view this map.")})), status=401)
-     
+
     config = map.viewer_json()
     config = json.dumps(config)
-    layers = MapLayer.objects.filter(map=map.id) 
+    layers = MapLayer.objects.filter(map=map.id)
     return render_to_response("maps/mapinfo.html", RequestContext(request, {
-        'config': config, 
+        'config': config,
         'map': map,
         'layers': layers,
         'permissions_json': json.dumps(_perms_info(map, MAP_LEV_NAMES))
@@ -613,10 +614,10 @@ def describemap(request, mapid):
     The view that displays a form for
     editing map metadata
     '''
-    map = get_object_or_404(Map,pk=mapid) 
+    map = get_object_or_404(Map,pk=mapid)
     if not request.user.has_perm('maps.change_map', obj=map):
-        return HttpResponse(loader.render_to_string('401.html', 
-                            RequestContext(request, {'error_message': 
+        return HttpResponse(loader.render_to_string('401.html',
+                            RequestContext(request, {'error_message':
                             _("You are not allowed to modify this map's metadata.")})),
                             status=401)
 
@@ -639,10 +640,10 @@ def describemap(request, mapid):
 
 def map_controller(request, mapid):
     '''
-    main view for map resources, dispatches to correct 
-    view based on method and query args. 
+    main view for map resources, dispatches to correct
+    view based on method and query args.
     '''
-    if 'remove' in request.GET: 
+    if 'remove' in request.GET:
         return deletemap(request, mapid)
     if 'describe' in request.GET:
         return describemap(request, mapid)
@@ -650,16 +651,16 @@ def map_controller(request, mapid):
         return mapdetail(request, mapid)
 
 def view(request, mapid):
-    """  
+    """
     The view that returns the map composer opened to
     the map with the given map ID.
     """
     map = Map.objects.get(pk=mapid)
     if not request.user.has_perm('maps.view_map', obj=map):
-        return HttpResponse(loader.render_to_string('401.html', 
-            RequestContext(request, {'error_message': 
-                _("You are not allowed to view this map.")})), status=401)    
-    
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
+                _("You are not allowed to view this map.")})), status=401)
+
     config = map.viewer_json()
     return render_to_response('maps/view.html', RequestContext(request, {
         'config': json.dumps(config),
@@ -675,7 +676,7 @@ def embed(request, mapid=None):
         map = Map.objects.get(pk=mapid)
         if not request.user.has_perm('maps.view_map', obj=map):
             return HttpResponse(_("Not Permitted"), status=401, mimetype="text/plain")
-        
+
         config = map.viewer_json()
     return render_to_response('maps/embed.html', RequestContext(request, {
         'config': json.dumps(config)
@@ -707,10 +708,10 @@ class LayerDescriptionForm(forms.Form):
 def _describe_layer(request, layer):
     if request.user.is_authenticated():
         if not request.user.has_perm('maps.change_layer', obj=layer):
-            return HttpResponse(loader.render_to_string('401.html', 
-                RequestContext(request, {'error_message': 
+            return HttpResponse(loader.render_to_string('401.html',
+                RequestContext(request, {'error_message':
                     _("You are not permitted to modify this layer's metadata")})), status=401)
-        
+
         poc = layer.poc
         metadata_author = layer.metadata_author
         poc_role = ContactRole.objects.get(layer=layer, role=layer.poc_role)
@@ -762,17 +763,17 @@ def _describe_layer(request, layer):
             "poc_form": poc_form,
             "author_form": author_form,
         }))
-    else: 
+    else:
         return HttpResponse("Not allowed", status=403)
 
 @csrf_exempt
 def _removeLayer(request,layer):
     if request.user.is_authenticated():
         if not request.user.has_perm('maps.delete_layer', obj=layer):
-            return HttpResponse(loader.render_to_string('401.html', 
-                RequestContext(request, {'error_message': 
+            return HttpResponse(loader.render_to_string('401.html',
+                RequestContext(request, {'error_message':
                     _("You are not permitted to delete this layer")})), status=401)
-        
+
         if (request.method == 'GET'):
             return render_to_response('maps/layer_remove.html',RequestContext(request, {
                 "layer": layer
@@ -781,18 +782,18 @@ def _removeLayer(request,layer):
             layer.delete()
             return HttpResponseRedirect(reverse("data"))
         else:
-            return HttpResponse("Not allowed",status=403) 
-    else:  
+            return HttpResponse("Not allowed",status=403)
+    else:
         return HttpResponse("Not allowed",status=403)
 
 @csrf_exempt
 def _changeLayerDefaultStyle(request,layer):
     if request.user.is_authenticated():
         if not request.user.has_perm('maps.change_layer', obj=layer):
-            return HttpResponse(loader.render_to_string('401.html', 
-                RequestContext(request, {'error_message': 
+            return HttpResponse(loader.render_to_string('401.html',
+                RequestContext(request, {'error_message':
                     _("You are not permitted to modify this layer")})), status=401)
-        
+
         if (request.method == 'POST'):
             style_name = request.POST.get('defaultStyle')
 
@@ -816,7 +817,7 @@ def _changeLayerDefaultStyle(request,layer):
             return HttpResponse("Default style for %s changed to %s" % (layer.name, style_name),status=200)
         else:
             return HttpResponse("Not allowed",status=403)
-    else:  
+    else:
         return HttpResponse("Not allowed",status=403)
 
 @csrf_exempt
@@ -831,12 +832,12 @@ def layerController(request, layername):
         return _updateLayer(request,layer)
     if (request.META['QUERY_STRING'] == "style"):
         return _changeLayerDefaultStyle(request,layer)
-    else: 
+    else:
         if not request.user.has_perm('maps.view_layer', obj=layer):
-            return HttpResponse(loader.render_to_string('401.html', 
-                RequestContext(request, {'error_message': 
+            return HttpResponse(loader.render_to_string('401.html',
+                RequestContext(request, {'error_message':
                     _("You are not permitted to view this layer")})), status=401)
-        
+
         metadata = layer.metadata_csw()
 
         maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
@@ -873,7 +874,7 @@ def upload_layer(request):
             try:
                 tempdir, base_file = form.write_files()
                 name, __ = os.path.splitext(form.cleaned_data["base_file"].name)
-                saved_layer = save(name, base_file, request.user, 
+                saved_layer = save(name, base_file, request.user,
                         overwrite = False,
                         abstract = form.cleaned_data["abstract"],
                         title = form.cleaned_data["layer_title"],
@@ -900,15 +901,15 @@ def upload_layer(request):
 @csrf_exempt
 def _updateLayer(request, layer):
     if not request.user.has_perm('maps.change_layer', obj=layer):
-        return HttpResponse(loader.render_to_string('401.html', 
-            RequestContext(request, {'error_message': 
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
                 _("You are not permitted to modify this layer")})), status=401)
-    
+
     if request.method == 'GET':
         cat = Layer.objects.gs_catalog
         info = cat.get_resource(layer.name)
         is_featuretype = info.resource_type == FeatureType.resource_type
-        
+
         return render_to_response('maps/layer_replace.html',
                                   RequestContext(request, {'layer': layer,
                                                            'is_featuretype': is_featuretype}))
@@ -947,13 +948,13 @@ def _updateLayer(request, layer):
 
 @login_required
 def view_layer_permissions(request, layername):
-    layer = get_object_or_404(Layer,typename=layername) 
+    layer = get_object_or_404(Layer,typename=layername)
 
     if not request.user.has_perm('maps.change_layer_permissions', obj=layer):
-        return HttpResponse(loader.render_to_string('401.html', 
-            RequestContext(request, {'error_message': 
+        return HttpResponse(loader.render_to_string('401.html',
+            RequestContext(request, {'error_message':
                 _("You are not permitted to view this layer's permissions")})), status=401)
-    
+
     ctx = _view_perms_context(layer, LAYER_LEV_NAMES)
     ctx['layer'] = layer
     return render_to_response("maps/layer_permissions.html", RequestContext(request, ctx))
@@ -984,7 +985,7 @@ def _perms_info(obj, level_names):
     if hasattr(obj, 'owner') and obj.owner is not None:
         info['owner'] = obj.owner.username
     return info
-       
+
 
 def _perms_info_json(obj, level_names):
     return json.dumps(_perms_info(obj, level_names))
@@ -1009,31 +1010,31 @@ def _handle_perms_edit(request, obj):
     errors = []
     params = request.POST
     valid_pl = obj.permission_levels
-    
+
     anon_level = params[ANONYMOUS_USERS]
     # validate anonymous level, disallow admin level
     if not anon_level in valid_pl or anon_level == obj.LEVEL_ADMIN:
         errors.append(_("Anonymous Users") + ": " + INVALID_PERMISSION_MESSAGE)
-    
+
     all_auth_level = params[AUTHENTICATED_USERS]
     if not all_auth_level in valid_pl:
         errors.append(_("Registered Users") + ": " + INVALID_PERMISSION_MESSAGE)
 
     kpat = re.compile("^u_(.*)_level$")
     ulevs = {}
-    for k, level in params.items(): 
+    for k, level in params.items():
         m = kpat.match(k)
-        if m: 
+        if m:
             username = m.groups()[0]
             if not level in valid_pl:
                 errors.append(_("User") + " " + username + ": " + INVALID_PERMISSION_MESSAGE)
             else:
                 ulevs[username] = level
 
-    if len(errors) == 0: 
+    if len(errors) == 0:
         obj.set_gen_level(ANONYMOUS_USERS, anon_level)
         obj.set_gen_level(AUTHENTICATED_USERS, all_auth_level)
-        
+
         for username, level in ulevs.items():
             user = User.objects.get(username=username)
             obj.set_user_level(user, level)
@@ -1053,12 +1054,12 @@ def _get_basic_auth_info(request):
 
 def layer_acls(request):
     """
-    returns json-encoded lists of layer identifiers that 
+    returns json-encoded lists of layer identifiers that
     represent the sets of read-write and read-only layers
-    for the currently authenticated user. 
+    for the currently authenticated user.
     """
-    
-    # the layer_acls view supports basic auth, and a special 
+
+    # the layer_acls view supports basic auth, and a special
     # user which represents the geoserver administrator that
     # is not present in django.
     acl_user = request.user
@@ -1068,7 +1069,7 @@ def layer_acls(request):
             acl_user = authenticate(username=username, password=password)
 
             # Nope, is it the special geoserver user?
-            if (acl_user is None and 
+            if (acl_user is None and
                 username == settings.GEOSERVER_CREDENTIALS[0] and
                 password == settings.GEOSERVER_CREDENTIALS[1]):
                 # great, tell geoserver it's an admin.
@@ -1082,13 +1083,13 @@ def layer_acls(request):
                 return HttpResponse(json.dumps(result), mimetype="application/json")
         except:
             pass
-        
-        if acl_user is None: 
+
+        if acl_user is None:
             return HttpResponse(_("Bad HTTP Authorization Credentials."),
                                 status=401,
                                 mimetype="text/plain")
 
-            
+
     all_readable = set()
     all_writable = set()
     for bck in get_auth_backends():
@@ -1097,14 +1098,14 @@ def layer_acls(request):
                                                       'maps.view_layer',
                                                       Layer))
             all_writable.update(bck.objects_with_perm(acl_user,
-                                                      'maps.change_layer', 
+                                                      'maps.change_layer',
                                                       Layer))
     read_only = [x for x in all_readable if x not in all_writable]
     read_write = [x for x in all_writable if x in all_readable]
 
     read_only = [x[0] for x in Layer.objects.filter(id__in=read_only).values_list('typename').all()]
     read_write = [x[0] for x in Layer.objects.filter(id__in=read_write).values_list('typename').all()]
-    
+
     result = {
         'rw': read_write,
         'ro': read_only,
@@ -1118,18 +1119,18 @@ def layer_acls(request):
 
 def _split_query(query):
     """
-    split and strip keywords, preserve space 
+    split and strip keywords, preserve space
     separated quoted blocks.
     """
 
     qq = query.split(' ')
     keywords = []
     accum = None
-    for kw in qq: 
-        if accum is None: 
+    for kw in qq:
+        if accum is None:
             if kw.startswith('"'):
                 accum = kw[1:]
-            elif kw: 
+            elif kw:
                 keywords.append(kw)
         else:
             accum += ' ' + kw
@@ -1147,17 +1148,17 @@ MAX_SEARCH_BATCH_SIZE = 25
 @csrf_exempt
 def metadata_search(request):
     """
-    handles a basic search for data using the 
+    handles a basic search for data using the
     GeoNetwork catalog.
 
-    the search accepts: 
+    the search accepts:
     q - general query for keywords across all fields
     start - skip to this point in the results
     limit - max records to return
 
-    for ajax requests, the search returns a json structure 
-    like this: 
-    
+    for ajax requests, the search returns a json structure
+    like this:
+
     {
     'total': <total result count>,
     'next': <url for next batch if exists>,
@@ -1209,7 +1210,7 @@ def metadata_search(request):
     try:
         limit = min(int(params.get('limit', DEFAULT_SEARCH_BATCH_SIZE)),
                     MAX_SEARCH_BATCH_SIZE)
-    except: 
+    except:
         limit = DEFAULT_SEARCH_BATCH_SIZE
 
     advanced = {}
@@ -1226,8 +1227,8 @@ def metadata_search(request):
     result = _metadata_search(query, start, limit, **advanced)
 
     # XXX slowdown here to dig out result permissions
-    for doc in result['rows']: 
-        try: 
+    for doc in result['rows']:
+        try:
             layer = Layer.objects.get(uuid=doc['uuid'])
             doc['_local'] = True
             doc['_permissions'] = {
@@ -1244,23 +1245,23 @@ def metadata_search(request):
     return HttpResponse(json.dumps(result), mimetype="application/json")
 
 def _metadata_search(query, start, limit, **kw):
-    
+
     csw = get_csw()
 
     keywords = _split_query(query)
-    
+
     csw.getrecords(keywords=keywords, startposition=start+1, maxrecords=limit, bbox=kw.get('bbox', None))
-    
-    
-    # build results 
-    # XXX this goes directly to the result xml doc to obtain 
+
+
+    # build results
+    # XXX this goes directly to the result xml doc to obtain
     # correct ordering and a fuller view of the result record
     # than owslib currently parses.  This could be improved by
     # improving owslib.
-    results = [_build_search_result(doc) for doc in 
+    results = [_build_search_result(doc) for doc in
                csw._exml.findall('//'+nspath('Record', namespaces['csw']))]
 
-    result = {'rows': results, 
+    result = {'rows': results,
               'total': csw.results['matches']}
 
     result['query_info'] = {
@@ -1268,16 +1269,16 @@ def _metadata_search(query, start, limit, **kw):
         'limit': limit,
         'q': query
     }
-    if start > 0: 
+    if start > 0:
         prev = max(start - limit, 0)
         params = urlencode({'q': query, 'start': prev, 'limit': limit})
         result['prev'] = reverse('geonode.maps.views.metadata_search') + '?' + params
 
-    next = csw.results.get('nextrecord', 0) 
+    next = csw.results.get('nextrecord', 0)
     if next > 0:
         params = urlencode({'q': query, 'start': next - 1, 'limit': limit})
         result['next'] = reverse('geonode.maps.views.metadata_search') + '?' + params
-    
+
     return result
 
 def search_result_detail(request):
@@ -1287,7 +1288,7 @@ def search_result_detail(request):
     rec = csw.records.values()[0]
     raw_xml = csw._exml.find(nspath('MD_Metadata', namespaces['gmd']))
     extra_links = _extract_links(rec, raw_xml)
-    
+
     try:
         layer = Layer.objects.get(uuid=uuid)
         layer_is_remote = False
@@ -1343,8 +1344,8 @@ def _extract_links(rec, xml):
 
 def _build_search_result(doc):
     """
-    accepts a node representing a csw result 
-    record and builds a POD structure representing 
+    accepts a node representing a csw result
+    record and builds a POD structure representing
     the search result.
     """
     if doc is None:
@@ -1362,18 +1363,18 @@ def _build_search_result(doc):
     result['attribution'] = {'title': '', 'href': ''}
 
     # XXX !_! pull out geonode 'typename' if there is one
-    # index this directly... 
+    # index this directly...
     if rec.uri:
         try:
             result['name'] = urlparse(rec.uri).path.split('/')[-1]
-        except: 
+        except:
             pass
     # fallback: use geonetwork uuid
     if not result.get('name', ''):
         result['name'] = rec.identifier
 
     # Take BBOX from GeoNetwork Result...
-    # XXX this assumes all our bboxes are in this 
+    # XXX this assumes all our bboxes are in this
     # improperly specified SRS.
     if rec.bbox is not None and rec.bbox.crs == 'urn:ogc:def:crs:::WGS 1984':
         # slight workaround for ticket 530
@@ -1383,7 +1384,7 @@ def _build_search_result(doc):
             'miny': min(rec.bbox.miny, rec.bbox.maxy),
             'maxy': max(rec.bbox.miny, rec.bbox.maxy)
         }
-    
+
     # XXX these could be exposed in owslib record...
     # locate all download links
     format_re = re.compile(".*\((.*)(\s*Format*\s*)\).*?")
@@ -1395,7 +1396,7 @@ def _build_search_result(doc):
                 format = format_re.match(link_el.get('description')).groups()[0]
                 href = link_el.text
                 result['download_links'].append((extension, format, href))
-            except: 
+            except:
                 pass
 
     # construct the link to the geonetwork metadata record (not self-indexed)
@@ -1414,7 +1415,7 @@ def _build_search_result(doc):
 def browse_data(request):
     return render_to_response('data.html', RequestContext(request, {}))
 
-@csrf_exempt    
+@csrf_exempt
 def search_page(request):
     DEFAULT_MAP_CONFIG, DEFAULT_BASE_LAYERS = default_map_config()
     # for non-ajax requests, render a generic search page
@@ -1449,7 +1450,7 @@ def change_poc(request, ids, template = 'maps/change_poc.html'):
             return HttpResponseRedirect('/admin/maps/layer') # Redirect after POST
     else:
         form = PocForm() # An unbound form
-    return render_to_response(template, RequestContext(request, 
+    return render_to_response(template, RequestContext(request,
                                   {'layers': layers, 'form': form }))
 
 
@@ -1460,19 +1461,19 @@ MAX_MAPS_SEARCH_BATCH_SIZE = 25
 @csrf_exempt
 def maps_search(request):
     """
-    handles a basic search for maps using the 
+    handles a basic search for maps using the
     GeoNetwork catalog.
 
-    the search accepts: 
+    the search accepts:
     q - general query for keywords across all fields
     start - skip to this point in the results
     limit - max records to return
     sort - field to sort results on
     dir - ASC or DESC, for ascending or descending order
 
-    for ajax requests, the search returns a json structure 
-    like this: 
-    
+    for ajax requests, the search returns a json structure
+    like this:
+
     {
     'total': <total result count>,
     'next': <url for next batch if exists>,
@@ -1511,12 +1512,12 @@ def maps_search(request):
     try:
         limit = min(int(params.get('limit', DEFAULT_MAPS_SEARCH_BATCH_SIZE)),
                     MAX_MAPS_SEARCH_BATCH_SIZE)
-    except: 
+    except:
         limit = DEFAULT_MAPS_SEARCH_BATCH_SIZE
 
 
     sort_field = params.get('sort', u'')
-    sort_field = unicodedata.normalize('NFKD', sort_field).encode('ascii','ignore')  
+    sort_field = unicodedata.normalize('NFKD', sort_field).encode('ascii','ignore')
     sort_dir = params.get('dir', 'ASC')
     result = _maps_search(query, start, limit, sort_field, sort_dir)
 
@@ -1556,7 +1557,7 @@ def _maps_search(query, start, limit, sort_field, sort_dir):
             }
         maps_list.append(mapdict)
 
-    result = {'rows': maps_list, 
+    result = {'rows': maps_list,
               'total': maps.count()}
 
     result['query_info'] = {
@@ -1564,7 +1565,7 @@ def _maps_search(query, start, limit, sort_field, sort_dir):
         'limit': limit,
         'q': query
     }
-    if start > 0: 
+    if start > 0:
         prev = max(start - limit, 0)
         params = urlencode({'q': query, 'start': prev, 'limit': limit})
         result['prev'] = reverse('geonode.maps.views.maps_search') + '?' + params
@@ -1573,10 +1574,10 @@ def _maps_search(query, start, limit, sort_field, sort_dir):
     if next < maps.count():
          params = urlencode({'q': query, 'start': next - 1, 'limit': limit})
          result['next'] = reverse('geonode.maps.views.maps_search') + '?' + params
-    
+
     return result
 
-@csrf_exempt    
+@csrf_exempt
 def maps_search_page(request):
     # for non-ajax requests, render a generic search page
 
@@ -1594,13 +1595,13 @@ def maps_search_page(request):
 
 def batch_permissions(request):
     if not request.user.is_authenticated:
-        return HttpResponse("You must log in to change permissions", status=401) 
+        return HttpResponse("You must log in to change permissions", status=401)
 
     if request.method != "POST":
         return HttpResponse("Permissions API requires POST requests", status=405)
 
     spec = json.loads(request.raw_post_data)
-    
+
     if "layers" in spec:
         lyrs = Layer.objects.filter(pk__in = spec['layers'])
         for lyr in lyrs:
@@ -1656,7 +1657,7 @@ def batch_permissions(request):
 
 def batch_delete(request):
     if not request.user.is_authenticated:
-        return HttpResponse("You must log in to delete layers", status=401) 
+        return HttpResponse("You must log in to delete layers", status=401)
 
     if request.method != "POST":
         return HttpResponse("Delete API requires POST requests", status=405)
