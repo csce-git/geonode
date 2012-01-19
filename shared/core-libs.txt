@@ -17,3 +17,5 @@ coverage==3.4
 -e git+https://github.com/cmheisel/nose-xcover.git#egg=nosexcover
 mock
 django-staticfiles==1.1.2
+numpy
+gdal
