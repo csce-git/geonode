@@ -13,6 +13,8 @@ from django.contrib.sites.models import Site
 
 from taggit.managers import TaggableManager
 
+from actstream.actions import follow, unfollow
+
 
 class Group(models.Model):
     
@@ -51,6 +53,12 @@ class Group(models.Model):
     
     def join(self, user, **kwargs):
         GroupMember(group=self, user=user, **kwargs).save()
+        # Automatically follow a group when joining it.
+        follow(user, self)
+    
+    def leave(self, user, **kwargs):
+        GroupMember.objects.get(group=self, user=user, **kwargs).delete()
+        unfollow(user, self)
     
     def invite(self, user, from_user, role="member", send=True):
         params = dict(role=role, from_user=from_user)
@@ -130,3 +138,4 @@ class GroupInvitation(models.Model):
     def decline(self):
         self.state = "declined"
         self.save()
+

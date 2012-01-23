@@ -47,6 +47,7 @@ urlpatterns = patterns('',
     (r'^accounts/', include('registration.urls')),
     (r'^profiles/', include('idios.urls')),
     (r'^messages/', include('user_messages.urls')),
+    (r'^actstream/', include('actstream.urls')),
     (r'^sitemap\.xml$', 'django.contrib.sitemaps.views.sitemap', {'sitemaps': sitemaps}),
     )
 
