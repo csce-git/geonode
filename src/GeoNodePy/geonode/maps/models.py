@@ -918,7 +918,7 @@ class Layer(models.Model, PermissionLevelMixin):
         if self.poc and self.poc.user:
             self.publishing.attribution = str(self.poc.user)
             profile = Contact.objects.get(user=self.poc.user)
-            self.publishing.attribution_link = settings.SITEURL[:-1] + profile.get_absolute_url()
+            #self.publishing.attribution_link = settings.SITEURL[:-1] + profile.get_absolute_url()
             Layer.objects.gs_catalog.save(self.publishing)
 
     def  _populate_from_gs(self):
@@ -1660,8 +1660,6 @@ class Thumbnail(models.Model):
             fp.write(content)
     
 
-def pre_delete_layer(instance, sender, **kwargs): 
-=======
 
 class GroupLayer(models.Model):
     
@@ -1691,8 +1689,7 @@ class GroupMap(models.Model):
         unique_together = (("group", "map"),)
 
 
-def delete_layer(instance, sender, **kwargs): 
->>>>>>> 04e2e0b5c99a0cee364b6290bc0fcb16c09ffb4b
+def pre_delete_layer(instance, sender, **kwargs): 
     """
     Removes the layer from GeoServer and GeoNetwork
     """
