@@ -4,7 +4,7 @@
 {% include "geonode/app_header.html" %}
 {{ block.super }}
 {% endblock %}
-{% load i18n avatar_tags activity_tags %}
+{% load i18n avatar_tags %}
 
 {% block content %}
     <div class="threecol">
@@ -21,11 +21,13 @@
                   {% csrf_token %}
                   <input type="submit" value="Join" />
               </form>
+		{% comment %}
               <a href="{% activity_follow_url object %}" id="followbutton">
                   <span>
                       {% activity_follow_label object Unfollow Follow %}
                   </span>
               </a>
+		{% endcomment %}
 
           {% else %}
               {# @@@ what is the correct behavior here? #}
