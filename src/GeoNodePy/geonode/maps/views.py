@@ -1645,7 +1645,7 @@ def _combined_search_results(query):
             owner_name = map.owner.first_name + " " + map.owner.last_name
         thumb = thumbs.get(map.id, None)
         # resolve any local layers and their keywords
-        local_kw = [ l.keywords.split(' ') for l in map.local_layers if l.keywords]
+        local_kw = [ l.keywords.all() for l in map.local_layers if l.keywords]
         keywords = local_kw and list(set( reduce(lambda a,b: a+b, local_kw))) or []
         mapdict = {
             'id' : map.id,
@@ -1653,7 +1653,7 @@ def _combined_search_results(query):
             'abstract' : map.abstract,
             'detail' : reverse('geonode.maps.views.map_controller', args=(map.id,)),
             'owner' : owner_name,
-            'owner_detail' : reverse('profiles.views.profile_detail', args=(map.owner.username,)),
+            'owner_detail' : reverse('profile_detail', kwargs=({'username': map.owner.username})),
             'last_modified' : map.last_modified.isoformat(),
             '_type' : 'map',
             '_display_type' : 'Map',
@@ -1680,7 +1680,7 @@ def _combined_search_results(query):
         doc['_display_type'] = layer.display_type
         owner = layer.owner
         if owner:
-            doc['owner_detail'] = reverse('profiles.views.profile_detail', args=(layer.owner.username,))
+            doc['owner_detail'] = reverse('profile_detail', kwargs=({'username': map.owner.username})) 
         results.append(doc)
         
     # @todo search cache timeout in settings?
@@ -1837,7 +1837,7 @@ def _maps_search(query, start, limit, sort_field, sort_dir):
             'abstract' : map.abstract,
             'detail' : reverse('geonode.maps.views.map_controller', args=(map.id,)),
             'owner' : owner_name,
-            'owner_detail' : reverse('profiles.views.profile_detail', args=(map.owner.username,)),
+            'owner_detail' : reverse('profile_detail', kwargs=({'username': map.owner.username})), 
             'last_modified' : map.last_modified.isoformat()
             }
         maps_list.append(mapdict)
