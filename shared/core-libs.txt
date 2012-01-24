@@ -31,4 +31,4 @@ django-taggit==0.9.3
 django-crispy-forms==1.0.0
 
 # @@@ This should be moved to a PyPI-based package, but the latest changes we need haven't been pushed to PyPI yet.
--e git+https://github.com/justquick/django-activity-stream.git#egg=django-activity-stream
+-e git+https://github.com/justquick/django-activity-stream.git@e9ae97cdc5#egg=django-activity-stream
