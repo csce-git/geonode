@@ -140,6 +140,8 @@ def group_invite_response(request, token):
     if request.method == "POST":
         if "accept" in request.POST:
             invite.accept(request.user)
+            if invite.group.access != "private":
+                action.send(request.user, verb="joined", target=invite.group)
         
         if "decline" in request.POST:
             invite.decline()
@@ -162,6 +164,8 @@ def group_add_layers(request, slug):
             ctx["layers_added"] = []
             for l in form.cleaned_data["layers"]:
                 GroupLayer.objects.get_or_create(layer=l, group=group)
+                if group.access != "private":
+                    action.send(request.user, verb="added layer", action_object=l, target=group)
                 ctx["layers_added"].append(l.title)
     else:
         form = GroupLayerForm()
@@ -189,6 +193,8 @@ def group_add_maps(request, slug):
             ctx["maps_added"] = []
             for m in form.cleaned_data["maps"]:
                 GroupMap.objects.get_or_create(map=m, group=group)
+                if group.access != "private":
+                    action.send(request.user, verb="added map", action_object=m, target=group)
                 ctx["maps_added"].append(m.title)
     else:
         form = GroupMapForm()
@@ -219,9 +225,13 @@ def group_remove_maps_data(request, slug):
         if map_form.is_valid() and layer_form.is_valid():
             for m in map_form.cleaned_data["maps"]:
                 GroupMap.objects.get(map=m).delete()
+                if group.access != "private":
+                    action.send(request.user, verb="removed map", action_object=m, target=group)
             map_form.cleaned_data["maps"] = []
             for l in layer_form.cleaned_data["layers"]:
                 GroupLayer.objects.get(layer=l).delete()
+                if group.access != "private":
+                    action.send(request.user, verb="removed layer", action_object=l, target=group)
             layer_form.cleaned_data["layers"] = []
             
     # Even if we're removing data, recreate the forms so that they are missing the removed elements.
