@@ -17,7 +17,7 @@ from actstream import action
 
 def group_list(request):
     ctx = {
-        "object_list": Group.objects.all(),
+        "object_list": Group.objects.exclude(access="private"),
     }
     ctx = RequestContext(request, ctx)
     return render_to_response("groups/group_list.html", ctx)
