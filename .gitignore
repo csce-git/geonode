@@ -26,10 +26,24 @@ target
 /src/avatar/
 /src/django-haystack/
 /src/nosexcover/
+/src/GeoNodePy/dist/
+/src/GeoNodePy/geonode/site_media/
+/src/djang-haystack/
+/src/django-activity-stream/
+/src/django-celery/
+/src/django-kombu/
+/src/django-paypal/
+/src/documents/
+/src/geonode-client/
+/src/gsuploader/
+/src/user-messages/
 /webapps/
 /src/GeoNodePy/capra/development.db
 /man
-
+docs/_build/
+jcs_caching/
+logs/
+ 
 
 # OSX specific
 .Python
