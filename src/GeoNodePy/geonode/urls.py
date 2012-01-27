@@ -49,6 +49,7 @@ urlpatterns = patterns('',
     (r'^messages/', include('user_messages.urls')),
     (r'^actstream/', include('actstream.urls')),
     (r'^sitemap\.xml$', 'django.contrib.sitemaps.views.sitemap', {'sitemaps': sitemaps}),
+    (r'search/', include('search.urls')),
     )
 
 urlpatterns += geonode.proxy.urls.urlpatterns

@@ -3,11 +3,15 @@ Ext.onReady(function() {
     limit = 5,
     loadnotify = Ext.get('loading'),
     itemTemplate = "<li id='item{iid}'><img class='thumb {thumbclass}' src='{thumb}'></img>" +
-    "<div class='itemButtons'><div id='toggle{iid}'></div><div id='save{iid}'></div><div id='map{iid}'></div></div>" +
-    "<div class='itemTitle'><a href='{detail}'>{title}</a></div>" +
-    "<div class='itemInfo'>{_display_type}, uploaded by <a href='{owner_detail}'>{owner}</a> on {last_modified:date(\"F j, Y\")}</div>" +
-    "<div class='itemAbstract>{abstract}</div>"+
-    "</li>",
+                    "<div class='itemButtons'><div id='toggle{iid}'></div><div id='save{iid}'></div><div id='map{iid}'></div></div>" +
+                    "<div class='itemTitle'><a href='{detail}'>{title}</a></div>" +
+                    "<div class='itemInfo'>{_display_type}, uploaded by <a href='{owner_detail}'>{owner}</a> on {last_modified:date(\"F j, Y\")}</div>" +
+                    "<div class='itemAbstract>{abstract}</div>"+
+                    "</li>",
+    contactTemplate = "<li id='item{iid}'><img class='thumb {thumbclass}' src='{thumb}'></img>" +
+                        "<div class='itemTitle'><a href='{detail}'>{name}</a></div>" +
+                        "<div class='itemInfo'>User</div>" +
+                        "</li>",
     filterTemplate = "<div class='{typeclass}'><img height='8' src='/static/theme/img/silk/delete.png' class='removeFilter' href='#removeFilter'> </a><strong>{type}</strong> {value}</div>",
     fetching = false,
     list = Ext.get(Ext.query('#search_results ul')[0]),
@@ -26,6 +30,8 @@ Ext.onReady(function() {
 
     itemTemplate = new Ext.DomHelper.createTemplate(itemTemplate);
     itemTemplate.compile();
+    contactTemplate = new Ext.DomHelper.createTemplate(contactTemplate);
+    contactTemplate.compile();
     filterTemplate = new Ext.DomHelper.createTemplate(filterTemplate);
     filterTemplate.compile();
 
@@ -58,10 +64,10 @@ Ext.onReady(function() {
     }
 
     function updateDisplaying() {
-        var cnt = store.getCount(), 
+        var cnt = store.getCount(),
             displaying = Ext.get('displaying'),
             note = Ext.get('displayNote');
-        if (cnt == 0) {
+        if (cnt === 0) {
             displaying.hide();
         } else {
             if (cnt == totalQueryCount) {
@@ -79,9 +85,17 @@ Ext.onReady(function() {
         loadnotify.hide();
         results = Ext.util.JSON.decode(results.responseText);
         totalQueryCount = results.total;
+
+        /* Replace the Counts */
+        Ext.fly('map-count').update("(" + results.counts.map + ")");
+        Ext.fly('layer-count').update("(" + results.counts.layer + ")");
+        Ext.fly('vector-count').update("(" + results.counts.vector + ")");
+        Ext.fly('raster-count').update("(" + results.counts.raster + ")");
+        Ext.fly('contact-count').update("(" + results.counts.contact + ")");
+
         var read = store.reader.readRecords(results);
-        if (read.records.length == 0) {
-            if (start == 0) {
+        if (read.records.length === 0) {
+            if (start === 0) {
                 Ext.DomHelper.append(list,'<li><h4 class="center">No Results</h4></li>');
             }
             start = -1;
@@ -96,50 +110,55 @@ Ext.onReady(function() {
             click: handleSave
         };
         Ext.each(results.rows,function(r,i) {
-            if (r.thumb == null) {
+            if (r.thumb === null) {
                 r.thumb = "{{ STATIC_URL }}theme/img/silk/map.png";
                 r.thumbclass = "missing";
             } else {
                 r.thumbclass = "";
             }
-            var item = itemTemplate.append(list,r,true);
-            var img = item.child('.thumb');
-            if (!img.hasClass('missing')) {
-                enableThumbHover(img);
+            if (r._type == "contact") {
+                contactTemplate.append(list, r, true);
             }
-            if (r.download_links) {
-                var items = [];
-                Ext.each(r.download_links,function(dl,i) {
-                    items.push({
-                        iconCls: dl[0],
-                        text: dl[1],
-                        link: dl[2],
-                        listeners: saveListeners
+            else {
+                var item = itemTemplate.append(list,r,true);
+                var img = item.child('.thumb');
+                if (!img.hasClass('missing')) {
+                    enableThumbHover(img);
+                }
+                if (r.download_links) {
+                    var items = [];
+                    Ext.each(r.download_links,function(dl,i) {
+                        items.push({
+                            iconCls: dl[0],
+                            text: dl[1],
+                            link: dl[2],
+                            listeners: saveListeners
+                        });
                     });
-                });
-                new Ext.Button({
-                    enableToggle: false,
-                    renderTo: 'save' + r.iid,
-                    iconCls: "saveButton",
-                    menu: {
-                        items: items
-                    },
-                    tooltip : "Save Layer As ..."
-                });
-            }
-            if (r._type == 'layer') {
-                var button = new Ext.Button({
-                    renderTo: 'toggle' + r.iid,
-                    iconCls: 'cartAddButton',
-                    tooltip : "Add to selected data"
-                });
-                button.on('click',handleSelect,r);
-                button = new Ext.Button({
-                    renderTo: 'map' + r.iid,
-                    iconCls: 'addToMapButton',
-                    tooltip : "Add data to new map"
-                });
-                button.on('click',handleAddToMap,r,{'choad':'bar'});
+                    new Ext.Button({
+                        enableToggle: false,
+                        renderTo: 'save' + r.iid,
+                        iconCls: "saveButton",
+                        menu: {
+                            items: items
+                        },
+                        tooltip : "Save Layer As ..."
+                    });
+                }
+                if (r._type == 'layer') {
+                    var button = new Ext.Button({
+                        renderTo: 'toggle' + r.iid,
+                        iconCls: 'cartAddButton',
+                        tooltip : "Add to selected data"
+                    });
+                    button.on('click',handleSelect,r);
+                    button = new Ext.Button({
+                        renderTo: 'map' + r.iid,
+                        iconCls: 'addToMapButton',
+                        tooltip : "Add data to new map"
+                    });
+                    button.on('click',handleAddToMap,r,{'choad':'bar'});
+                }
             }
         });
 
@@ -163,7 +182,7 @@ Ext.onReady(function() {
             },queryItems);
         Ext.Ajax.request({
             // @todo URL
-            url: '/data/newsearch/api',
+            url: '{% url search_api %}',
             method: 'GET',
             success: appendResults,
             params: params
@@ -227,7 +246,7 @@ Ext.onReady(function() {
         },
         constructor : function(config) {
             Ext.apply(this, config);
-            this.addEvents('rowselect','rowdeselect')
+            this.addEvents('rowselect','rowdeselect');
         },
         getButton : function(el) {
             // maybe a better way to do this?
@@ -254,7 +273,7 @@ Ext.onReady(function() {
            el.remove();
            if (multiple) {
                queryItems[querykey].remove(queryValue);
-               if (queryItems[querykey].length == 0) {
+               if (queryItems[querykey].length === 0) {
                    delete queryItems[querykey];
                }
            } else {
@@ -307,7 +326,7 @@ Ext.onReady(function() {
     selModel = new SelectionModel();
     dataCartStore = new GeoNode.DataCartStore({
         selModel : selModel
-    })
+    });
     var bbox = new GeoNode.BoundingBoxWidget({
         proxy: "/proxy/?url=",
         viewerConfig: viewer_config,

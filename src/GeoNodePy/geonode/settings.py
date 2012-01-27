@@ -225,6 +225,7 @@ INSTALLED_APPS = (
     'django.contrib.admin',
     'django.contrib.sitemaps',
 
+    
     'staticfiles',
     'django_extensions',
     'registration',
@@ -240,7 +241,8 @@ INSTALLED_APPS = (
     'actstream',
     'user_messages',
     'crispy_forms',
-
+    'haystack',
+    
     'geonode.core',
     'geonode.maps',
     'geonode.people',
@@ -290,6 +292,13 @@ AGON_RATINGS_CATEGORY_CHOICES = {
     },
     "maps.Layer": {
         "layer": "How good is this layer?"
+    },
+}
+
+HAYSTACK_CONNECTIONS = {
+    'default': {
+        'ENGINE': 'haystack.backends.whoosh_backend.WhooshEngine',
+        'PATH': os.path.join(os.path.dirname(__file__), 'whoosh_index'),
     },
 }
 
