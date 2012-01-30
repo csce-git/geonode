@@ -118,6 +118,21 @@ def group_members(request, slug):
 
 
 @require_POST
+@login_required
+def group_join(request, slug):
+    group = get_object_or_404(Group, slug=slug)
+    
+    if group.access == "private":
+        raise Http404()
+    
+    if group.user_is_member(request.user):
+        return redirect("group_members", slug=group.slug)
+    else:
+        group.join(request.user, role="member")
+        return redirect("group_members", slug=group.slug)
+
+
+@require_POST
 def group_invite(request, slug):
     group = get_object_or_404(Group, slug=slug)
     
@@ -173,6 +188,8 @@ def group_add_layers(request, slug):
                 ctx["layers_added"].append(l.title)
     else:
         form = GroupLayerForm()
+    
+    form.fields["layers"].queryset = Layer.objects.filter(owner=request.user)
         
     ctx["form"] = form
     ctx.update({
@@ -202,6 +219,8 @@ def group_add_maps(request, slug):
                 ctx["maps_added"].append(m.title)
     else:
         form = GroupMapForm()
+    
+    form.fields["maps"].queryset = Map.objects.filter(owner=request.user)
         
     ctx["form"] = form
     ctx.update({
@@ -246,7 +265,7 @@ def group_remove_maps_data(request, slug):
     map_form.fields["maps"].queryset = Map.objects.filter(id__in=map_ids)
     
     layer_form = GroupLayerForm()
-    layer_form.fields["layers"].queryset = Map.objects.filter(id__in=layer_ids)
+    layer_form.fields["layers"].queryset = Layer.objects.filter(id__in=layer_ids)
     
     ctx["map_form"] = map_form
     ctx["layer_form"] = layer_form

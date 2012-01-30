@@ -7,7 +7,7 @@
 {% if object_list %}
 {% for group in object_list %}
    <ul>
-     <li><a href="{% url group_detail group.slug %}">{{ group.title }}</a></li>
+       <li><img src="{{ group.logo.url }}" alt="{{ object.title }}" class="group-logo"><a href="{% url group_detail group.slug %}">{{ group.title }}</a></li>
    </ul>
 {% endfor %}
 {% else %}

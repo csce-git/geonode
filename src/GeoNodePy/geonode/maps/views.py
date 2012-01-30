@@ -13,6 +13,7 @@ from django.contrib.auth.models import User, Group
 from django.contrib.gis.geos import GEOSGeometry
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.urlresolvers import reverse
+from django.core.context_processors import csrf
 from django.db import transaction
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render_to_response, get_object_or_404
@@ -886,7 +887,6 @@ def layer_style(request, layername):
         return HttpResponse("Not allowed",status=403)
 
 
-@csrf_exempt
 def layer_detail(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
     if not request.user.has_perm('maps.view_layer', obj=layer):
