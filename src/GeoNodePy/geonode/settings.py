@@ -244,6 +244,7 @@ INSTALLED_APPS = (
     'user_messages',
     'crispy_forms',
     'haystack',
+    'south',
     
     'geonode.core',
     'geonode.maps',
