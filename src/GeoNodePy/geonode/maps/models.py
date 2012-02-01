@@ -575,12 +575,12 @@ class Layer(models.Model, PermissionLevelMixin):
                     'outputFormat': mime
                 })
             types = [
-                ("zip", _("Zipped Shapefile"), "SHAPE-ZIP"),
-                ("gml", _("GML 2.0"), "gml2"),
-                ("gml", _("GML 3.1.1"), "text/xml; subtype=gml/3.1.1"),
-                ("csv", _("CSV"), "csv"),
-                ("excel", _("Excel"), "excel"),
-                ("json", _("GeoJSON"), "json")
+                ("zip", ("Zipped Shapefile"), "SHAPE-ZIP"),
+                ("gml", ("GML 2.0"), "gml2"),
+                ("gml", ("GML 3.1.1"), "text/xml; subtype=gml/3.1.1"),
+                ("csv", ("CSV"), "csv"),
+                ("excel", ("Excel"), "excel"),
+                ("json", ("GeoJSON"), "json")
             ]
             links.extend((ext, name, wfs_link(mime)) for ext, name, mime in types)
         elif self.resource.resource_type == "coverage":
@@ -633,9 +633,9 @@ class Layer(models.Model, PermissionLevelMixin):
             })
 
         types = [
-            ("jpg", _("JPEG"), "image/jpeg"),
-            ("pdf", _("PDF"), "application/pdf"),
-            ("png", _("PNG"), "image/png")
+            ("jpg", ("JPEG"), "image/jpeg"),
+            ("pdf", ("PDF"), "application/pdf"),
+            ("png", ("PNG"), "image/png")
         ]
 
         links.extend((ext, name, wms_link(mime)) for ext, name, mime in types)
@@ -650,8 +650,8 @@ class Layer(models.Model, PermissionLevelMixin):
             'mode': "refresh"
         })
 
-        links.append(("KML", _("KML"), kml_reflector_link_download))
-        links.append(("KML", _("View in Google Earth"), kml_reflector_link_view))
+        links.append(("KML", ("KML"), kml_reflector_link_download))
+        links.append(("KML", ("View in Google Earth"), kml_reflector_link_view))
 
         return links
 
