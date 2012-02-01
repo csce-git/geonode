@@ -1,6 +1,7 @@
 from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
 from geonode.maps.models import Service, Map, Layer, MapLayer, GroupLayer, ContactRole, Role, Collection, Thumbnail, get_csw, search_history
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
+from geonode.people.models import Contact
 from geonode.groups.models import Group as Geogroup
 from geonode import geonetwork
 import geoserver
@@ -920,7 +921,7 @@ def layer_detail(request, layername):
         "viewer": json.dumps(map.viewer_json(* (DEFAULT_BASE_LAYERS + [maplayer]))),
         "permissions_json": _perms_info_json(layer, LAYER_LEV_NAMES),
         "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL,
-        "license_agreement" : license_agreement
+        "license_agreement" : license_agreement,
         "groups": groups,
     }))
 
@@ -1732,7 +1733,7 @@ def _new_search(query, start, limit, sort_field, sort_asc, **filters):
         'total' : totalQueryCount
     }
 
-def change_poc(request, ids, template='maps/change_poc.html'):
+def change_poc(request, ids, template = 'maps/change_poc.html'):
     layers = Layer.objects.filter(id__in=ids.split('_'))
     if request.method == 'POST':
         form = PocForm(request.POST)
@@ -1747,7 +1748,6 @@ def change_poc(request, ids, template='maps/change_poc.html'):
         form = PocForm() # An unbound form
     return render_to_response(template, RequestContext(request, 
                                   {'layers': layers, 'form': form }))
-
 
 #### MAPS SEARCHING ####
 
@@ -1880,12 +1880,13 @@ def maps_search_page(request):
         params = request.GET
     elif request.method == 'POST':
         params = request.POST
-        return HttpResponseRedirect('/admin/maps/layer')  # Redirect after POST
     else:
-        form = PocForm()  # An unbound form
-    return render_to_response(template, RequestContext(request,
-                                  {'layers': layers, 'form': form}))
+        return HttpResponse(status=405)
 
+    return render_to_response('maps_search.html', RequestContext(request, {
+        'init_search': json.dumps(params or {}),
+         "site" : settings.SITEURL
+    }))
 
 def batch_permissions(request):
     if not request.user.is_authenticated:
