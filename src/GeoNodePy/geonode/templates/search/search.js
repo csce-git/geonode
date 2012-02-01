@@ -92,6 +92,7 @@ Ext.onReady(function() {
         Ext.fly('vector-count').update("(" + results.counts.vector + ")");
         Ext.fly('raster-count').update("(" + results.counts.raster + ")");
         Ext.fly('contact-count').update("(" + results.counts.contact + ")");
+        Ext.fly('group-count').update("(" + results.counts.group + ")");
 
         var read = store.reader.readRecords(results);
         if (read.records.length === 0) {
