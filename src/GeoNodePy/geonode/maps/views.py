@@ -1,6 +1,7 @@
 from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
-from geonode.maps.models import Service, Map, Layer, MapLayer, Contact, ContactRole, Role, Collection, Thumbnail, get_csw, search_history
+from geonode.maps.models import Service, Map, Layer, MapLayer, GroupLayer, ContactRole, Role, Collection, Thumbnail, get_csw, search_history
 from geonode.maps.gs_helpers import fixup_style, cascading_delete, delete_from_postgis
+from geonode.groups.models import Group as Geogroup
 from geonode import geonetwork
 import geoserver
 from geoserver.catalog import Catalog
@@ -900,6 +901,12 @@ def layer_detail(request, layername):
         maplayer = MapLayer(name = layer.typename, ows_url = layer.service.base_url)
     else:
         maplayer = MapLayer(name = layer.typename, ows_url = settings.GEOSERVER_BASE_URL + "wms")
+    
+    groups = Geogroup.objects.filter(
+            id__in=GroupLayer.objects.filter(layer=layer).values_list("group", flat=True),
+            ).exclude(
+            access="private"
+    )
 
     # center/zoom don't matter; the viewer will center on the layer bounds
     map = Map(projection="EPSG:900913")
@@ -914,6 +921,7 @@ def layer_detail(request, layername):
         "permissions_json": _perms_info_json(layer, LAYER_LEV_NAMES),
         "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL,
         "license_agreement" : license_agreement
+        "groups": groups,
     }))
 
         

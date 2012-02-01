@@ -189,14 +189,22 @@ def group_add_layers(request, slug):
     else:
         form = GroupLayerForm()
     
-    form.fields["layers"].queryset = Layer.objects.filter(owner=request.user)
-        
+    current_layers = GroupLayer.layers_for_group(group)
+    
+    form.fields["layers"].queryset = Layer.objects.filter(
+            owner=request.user
+            ).exclude(
+            id__in=[li for li in current_layers.values_list('id', flat=True)]
+    )
+    
+    
     ctx["form"] = form
     ctx.update({
         "object": group,
         "members": group.member_queryset(),
         "is_member": group.user_is_member(request.user),
         "is_manager": group.user_is_role(request.user, "manager"),
+        "current_layers": current_layers,
     })
     ctx = RequestContext(request, ctx)
     return render_to_response("groups/group_add_layers.html", ctx)
@@ -220,14 +228,22 @@ def group_add_maps(request, slug):
     else:
         form = GroupMapForm()
     
-    form.fields["maps"].queryset = Map.objects.filter(owner=request.user)
-        
+    current_maps = GroupMap.maps_for_group(group)
+    
+    form.fields["maps"].queryset = Map.objects.filter(
+            owner=request.user
+            ).exclude(
+            id__in=[mi for mi in current_maps.values_list('id', flat=True)]
+    )
+    
+    
     ctx["form"] = form
     ctx.update({
         "object": group,
         "members": group.member_queryset(),
         "is_member": group.user_is_member(request.user),
         "is_manager": group.user_is_role(request.user, "manager"),
+        "current_maps": current_maps,
     })
     ctx = RequestContext(request, ctx)
     return render_to_response("groups/group_add_maps.html", ctx)
