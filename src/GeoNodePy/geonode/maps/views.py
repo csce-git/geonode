@@ -156,7 +156,7 @@ COLLECTION_LEV_NAMES = {
     Collection.LEVEL_ADMIN : _('Administrative')
 }
 
-@transaction.commit_manually
+
 def maps(request, mapid=None):
     if request.method == 'GET':
         return render_to_response('maps.html', RequestContext(request))
@@ -167,22 +167,23 @@ def maps(request, mapid=None):
                 mimetype="text/plain",
                 status=401
             )
-        try:
-            map = Map(owner=request.user, zoom=0, center_x=0, center_y=0)
-            map.save()
-            map.set_default_permissions()
-            map.update_from_viewer(request.raw_post_data)
-            response = HttpResponse('', status=201)
-            response['Location'] = map.id
-            transaction.commit()
-            return response
-        except Exception, e:
-            transaction.rollback()
-            return HttpResponse(
-                "The server could not understand your request." + str(e),
-                status=400,
-                mimetype="text/plain"
-            )
+        with transaction.commit_manually:
+            try:
+                map = Map(owner=request.user, zoom=0, center_x=0, center_y=0)
+                map.save()
+                map.set_default_permissions()
+                map.update_from_viewer(request.raw_post_data)
+                response = HttpResponse('', status=201)
+                response['Location'] = map.id
+                transaction.commit()
+                return response
+            except Exception, e:
+                transaction.rollback()
+                return HttpResponse(
+                    "The server could not understand your request." + str(e),
+                    status=400,
+                    mimetype="text/plain"
+                )
 
 def mapJSON(request, mapid):
     if request.method == 'GET':
@@ -1366,7 +1367,8 @@ def _metadata_search(query, start, limit, **kw):
 
     keywords = _split_query(query)
 
-    csw.getrecords(keywords=keywords, startposition=start + 1, maxrecords=limit, bbox=kw.get('bbox', None))
+    csw.getrecords(keywords=keywords, startposition=start+1, maxrecords=limit, bbox=kw.get('bbox', None))
+
 
     # build results
     # XXX this goes directly to the result xml doc to obtain
@@ -1374,7 +1376,7 @@ def _metadata_search(query, start, limit, **kw):
     # than owslib currently parses.  This could be improved by
     # improving owslib.
     results = [_build_search_result(doc) for doc in
-               csw._exml.findall('//' + nspath('Record', namespaces['csw']))]
+               csw._exml.findall('//'+nspath('Record', namespaces['csw']))]
 
     result = {'rows': results,
               'total': csw.results['matches']}
@@ -1403,7 +1405,7 @@ def search_result_detail(request):
     rec = csw.records.values()[0]
     raw_xml = csw._exml.find(nspath('MD_Metadata', namespaces['gmd']))
     extra_links = _extract_links(rec, raw_xml)
-    
+
     try:
         layer = Layer.objects.get(uuid=uuid)
         layer_is_remote = False
@@ -1532,7 +1534,7 @@ def _build_search_result(doc):
 def browse_data(request):
     return render_to_response('data.html', RequestContext(request, {}))
 
-@csrf_exempt    
+@csrf_exempt
 def search_page(request):
     DEFAULT_MAP_CONFIG, DEFAULT_BASE_LAYERS = default_map_config()
     # for non-ajax requests, render a generic search page
@@ -1746,7 +1748,7 @@ def change_poc(request, ids, template = 'maps/change_poc.html'):
             return HttpResponseRedirect('/admin/maps/layer') # Redirect after POST
     else:
         form = PocForm() # An unbound form
-    return render_to_response(template, RequestContext(request, 
+    return render_to_response(template, RequestContext(request,
                                   {'layers': layers, 'form': form }))
 
 #### MAPS SEARCHING ####
@@ -1756,19 +1758,19 @@ MAX_MAPS_SEARCH_BATCH_SIZE = 25
 @csrf_exempt
 def maps_search(request):
     """
-    handles a basic search for maps using the 
+    handles a basic search for maps using the
     GeoNetwork catalog.
 
-    the search accepts: 
+    the search accepts:
     q - general query for keywords across all fields
     start - skip to this point in the results
     limit - max records to return
     sort - field to sort results on
     dir - ASC or DESC, for ascending or descending order
 
-    for ajax requests, the search returns a json structure 
-    like this: 
-    
+    for ajax requests, the search returns a json structure
+    like this:
+
     {
     'total': <total result count>,
     'next': <url for next batch if exists>,
@@ -1807,12 +1809,12 @@ def maps_search(request):
     try:
         limit = min(int(params.get('limit', DEFAULT_MAPS_SEARCH_BATCH_SIZE)),
                     MAX_MAPS_SEARCH_BATCH_SIZE)
-    except: 
+    except:
         limit = DEFAULT_MAPS_SEARCH_BATCH_SIZE
 
 
     sort_field = params.get('sort', u'')
-    sort_field = unicodedata.normalize('NFKD', sort_field).encode('ascii','ignore')  
+    sort_field = unicodedata.normalize('NFKD', sort_field).encode('ascii','ignore')
     sort_dir = params.get('dir', 'ASC')
     result = _maps_search(query, start, limit, sort_field, sort_dir)
 
@@ -1852,7 +1854,7 @@ def _maps_search(query, start, limit, sort_field, sort_dir):
             }
         maps_list.append(mapdict)
 
-    result = {'rows': maps_list, 
+    result = {'rows': maps_list,
               'total': maps.count()}
 
     result['query_info'] = {
@@ -1860,7 +1862,7 @@ def _maps_search(query, start, limit, sort_field, sort_dir):
         'limit': limit,
         'q': query
     }
-    if start > 0: 
+    if start > 0:
         prev = max(start - limit, 0)
         params = urlencode({'q': query, 'start': prev, 'limit': limit})
         result['prev'] = reverse('geonode.maps.views.maps_search') + '?' + params
@@ -1869,10 +1871,10 @@ def _maps_search(query, start, limit, sort_field, sort_dir):
     if next < maps.count():
          params = urlencode({'q': query, 'start': next - 1, 'limit': limit})
          result['next'] = reverse('geonode.maps.views.maps_search') + '?' + params
-    
+
     return result
 
-@csrf_exempt    
+@csrf_exempt
 def maps_search_page(request):
     # for non-ajax requests, render a generic search page
 
@@ -1894,7 +1896,6 @@ def batch_permissions(request):
 
     if request.method != "POST":
         return HttpResponse("Permissions API requires POST requests", status=405)
-    
     spec = json.loads(request.raw_post_data)
 
     if "layers" in spec:

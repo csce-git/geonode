@@ -31,8 +31,8 @@ def group_create(request):
             group = form.save(commit=False)
             group.save()
             group.join(request.user, role="manager")
-            #if group.access != "private":
-            #    action.send(request.user, verb="created", target=group)
+            if group.access != "private":
+                action.send(request.user, verb="created", target=group)
             return redirect("group_detail", group.slug)
     else:
         form = GroupForm()
@@ -53,8 +53,8 @@ def group_update(request, slug):
         if form.is_valid():
             group = form.save(commit=False)
             group.save()
-            #if group.access != "private":
-            #    action.send(request.user, verb="updated", target=group)
+            if group.access != "private":
+                action.send(request.user, verb="updated", target=group)
             return redirect("group_detail", group.slug)
     else:
         form = GroupForm(instance=group)
@@ -76,12 +76,12 @@ def group_detail(request, slug):
     if request.method == "POST":
         if group.user_is_member(request.user):
             group.leave(request.user)
-            #if group.access != "private":
-            #    action.send(request.user, verb="left", target=group)
+            if group.access != "private":
+                action.send(request.user, verb="left", target=group)
         else:
             group.join(request.user)
-            #if group.access != "private":
-            #    action.send(request.user, verb="joined", target=group)
+            if group.access != "private":
+                action.send(request.user, verb="joined", target=group)
                 
         return redirect("group_detail", group.slug)
         
@@ -159,8 +159,8 @@ def group_invite_response(request, token):
     if request.method == "POST":
         if "accept" in request.POST:
             invite.accept(request.user)
-            #if invite.group.access != "private":
-            #    action.send(request.user, verb="joined", target=invite.group)
+            if invite.group.access != "private":
+                action.send(request.user, verb="joined", target=invite.group)
         
         if "decline" in request.POST:
             invite.decline()
@@ -183,8 +183,8 @@ def group_add_layers(request, slug):
             ctx["layers_added"] = []
             for l in form.cleaned_data["layers"]:
                 GroupLayer.objects.get_or_create(layer=l, group=group)
-                #if group.access != "private":
-                #    action.send(request.user, verb="added layer", action_object=l, target=group)
+                if group.access != "private":
+                    action.send(request.user, verb="added layer", action_object=l, target=group)
                 ctx["layers_added"].append(l.title)
     else:
         form = GroupLayerForm()
@@ -222,8 +222,8 @@ def group_add_maps(request, slug):
             ctx["maps_added"] = []
             for m in form.cleaned_data["maps"]:
                 GroupMap.objects.get_or_create(map=m, group=group)
-                #if group.access != "private":
-                #    action.send(request.user, verb="added map", action_object=m, target=group)
+                if group.access != "private":
+                    action.send(request.user, verb="added map", action_object=m, target=group)
                 ctx["maps_added"].append(m.title)
     else:
         form = GroupMapForm()
@@ -264,13 +264,13 @@ def group_remove_maps_data(request, slug):
         if map_form.is_valid() and layer_form.is_valid():
             for m in map_form.cleaned_data["maps"]:
                 GroupMap.objects.get(map=m).delete()
-                #if group.access != "private":
-                #    action.send(request.user, verb="removed map", action_object=m, target=group)
+                if group.access != "private":
+                    action.send(request.user, verb="removed map", action_object=m, target=group)
             map_form.cleaned_data["maps"] = []
             for l in layer_form.cleaned_data["layers"]:
                 GroupLayer.objects.get(layer=l).delete()
-                #if group.access != "private":
-                #    action.send(request.user, verb="removed layer", action_object=l, target=group)
+                if group.access != "private":
+                    action.send(request.user, verb="removed layer", action_object=l, target=group)
             layer_form.cleaned_data["layers"] = []
             
     # Even if we're removing data, recreate the forms so that they are missing the removed elements.

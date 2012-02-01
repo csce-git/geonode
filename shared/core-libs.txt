@@ -20,7 +20,6 @@ nose-cover3
 coverage==3.4
 -e git+https://github.com/cmheisel/nose-xcover.git#egg=nosexcover
 mock
-django-staticfiles
 agon-ratings==0.2
 dialogos==0.1.dev4
 django-relationships==0.3.0
@@ -34,3 +33,5 @@ whoosh
 # @@@ This should be moved to a PyPI-based package, but the latest changes we need haven't been pushed to PyPI yet.
 -e git+https://github.com/justquick/django-activity-stream.git@e9ae97cdc5#egg=django-activity-stream
 -e git+https://github.com/toastdriven/django-haystack.git#egg=django-haystack
+django-staticfiles
+numpy
