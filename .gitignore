@@ -25,10 +25,10 @@ target
 /src/owslib/
 /src/avatar/
 /src/django-haystack/
+/src/xapian-haystack/
 /src/nosexcover/
 /src/GeoNodePy/dist/
 /src/GeoNodePy/geonode/site_media/
-/src/djang-haystack/
 /src/django-activity-stream/
 /src/django-celery/
 /src/django-kombu/
