@@ -10,6 +10,12 @@ from idios.models import ProfileBase, create_profile
 
 from geonode.core.models import COUNTRIES
 
+from relationships.models import Relationship
+from notification import models as notification
+
+import logging
+logger = logging.getLogger("geonode.people.models")
+
 CONTACT_FIELDS = [
     "name",
     "organization",
@@ -64,6 +70,23 @@ def create_user_profile(instance, sender, created, **kwargs):
         profile = Contact(user=instance)
         profile.name = instance.username
         profile.save()
+
+# Connect notice creation to new following relationships.
+def notify_on_follow(instance, sender, **kwargs):
+    """
+    Notify the followed user that they have a new follower.
+
+    This handler is present since the relationhip model itself doesn't send notifications.
+    """
+    if instance.status.verb == "follow":
+        notification.send([instance.to_user],
+                        "user_followed",
+                        {"from_user": instance.from_user, "user_url": instance.from_user.get_absolute_url()},
+                        on_site=True
+        )
+        logger.info("Notification sent from {0} to {1}".format(instance.to_user, instance.from_user))
+
+signals.post_save.connect(notify_on_follow, sender=Relationship)
 
 # Remove the idios create_profile handler, which interferes with ours.
 signals.post_save.disconnect(create_profile, sender=User)
