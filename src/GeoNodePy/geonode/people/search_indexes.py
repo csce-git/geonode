@@ -6,6 +6,7 @@ from django.core.urlresolvers import reverse
 from haystack import indexes
 
 from geonode.people.models import Contact 
+from avatar.models import Avatar
 
 class ContactIndex(indexes.SearchIndex, indexes.Indexable):
     text = indexes.CharField(document=True, use_template=True)
@@ -24,6 +25,10 @@ class ContactIndex(indexes.SearchIndex, indexes.Indexable):
         return "contact"
 
     def prepare_json(self, obj):
+	try:
+		avatar_url = Avatar.objects.get(user=obj.pk).avatar_url(80)
+	except:
+		avatar_url = None
         data = {
             "_type": self.prepare_type(obj),
 
@@ -41,8 +46,8 @@ class ContactIndex(indexes.SearchIndex, indexes.Indexable):
             "country": obj.country,
             "email": obj.email,
 
-            "thumb": settings.STATIC_URL + "static/img/contact.png",
-            "detail": None,
+            "thumb": avatar_url if avatar_url else None, 
+            "detail": obj.user.get_profile().get_absolute_url() if obj.user.get_profile() else None,
         }
 
         return json.dumps(data)
