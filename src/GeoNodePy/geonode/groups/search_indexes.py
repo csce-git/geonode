@@ -7,7 +7,7 @@ from haystack import indexes
 
 from geonode.groups.models import Group
 
-class GroupIndex(indexes.SearchIndex, indexes.Indexable):
+class GroupIndex(indexes.RealTimeSearchIndex, indexes.Indexable):
     text = indexes.CharField(document=True, use_template=True)
     title = indexes.CharField()
 

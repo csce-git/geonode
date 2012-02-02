@@ -8,7 +8,7 @@ from haystack import indexes
 from geonode.people.models import Contact 
 from avatar.models import Avatar
 
-class ContactIndex(indexes.SearchIndex, indexes.Indexable):
+class ContactIndex(indexes.RealTimeSearchIndex, indexes.Indexable):
     text = indexes.CharField(document=True, use_template=True)
     title = indexes.CharField()
 
