@@ -1584,7 +1584,7 @@ class ThumbnailManager(models.Manager):
         models.Manager.__init__(self)
         self.storage = FileSystemStorage(
             location = os.path.join(settings.PROJECT_ROOT, "static","thumbs"),
-            base_url = settings.STATIC_URL + "thumbs/"
+            base_url = settings.STATICFILES_URL + "thumbs/"
         )
         if not os.path.exists(self.storage.location):
             os.makedirs(self.storage.location)
