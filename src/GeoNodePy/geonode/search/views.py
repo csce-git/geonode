@@ -8,7 +8,8 @@ from django.template import RequestContext
 from haystack.inputs import AutoQuery
 from haystack.query import SearchQuerySet
 
-from geonode.maps.views import default_map_config, Map, Layer
+from geonode.maps.views import default_map_config
+from geonode.maps.models import Map, Layer
 
 
 def search(request):
@@ -21,7 +22,7 @@ def search(request):
     map = Map(projection="EPSG:900913", zoom=1, center_x=0, center_y=0)
 
     # Default Counts to 0, JS will Load the Correct Counts
-    counts = {"map": 0, "layer": 0, "vector": 0, "raster": 0, "contact": 0}
+    counts = {"map": 0, "layer": 0, "vector": 0, "raster": 0, "contact": 0, "group": 0}
 
     return render_to_response("search/search.html", RequestContext(request, {
         "init_search": json.dumps(params),
@@ -37,14 +38,14 @@ def search(request):
 def search_api(request):
     query = request.REQUEST.get("q", "")
     start = int(request.REQUEST.get("start", 0))
-    limit = int(request.REQUEST.get("limit", getattr(settings, "HAYSTACK_SEARCH_RESULTS_PER_PAGE", 20)))
+    limit = int(request.REQUEST.get("limit", getattr(settings, "HAYSTACK_SEARCH_RESULTS_PER_PAGE", 25)))
     sort = request.REQUEST.get("sort", "relevance")
     type = request.REQUEST.get("bytype")
 
     sqs = SearchQuerySet()
 
     if type is not None:
-        if type in ["map", "layer", "contact"]:
+        if type in ["map", "layer", "contact", "group"]:
             # Type is one of our Major Types (not a sub type)
             sqs = sqs.narrow("type:%s" % type)
         elif type in ["vector", "raster"]:
@@ -73,7 +74,7 @@ def search_api(request):
         results.append(data)
 
     facets = sqs.facet_counts()
-    counts = {"map": 0, "layer": 0, "vector": 0, "raster": 0, "contact": 0}
+    counts = {"map": 0, "layer": 0, "vector": 0, "raster": 0, "contact": 0, "group": 0}
 
     for t, c in facets.get("fields", {}).get("type", []):
         counts[t] = c
