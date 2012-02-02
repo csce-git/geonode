@@ -1,6 +1,6 @@
 Ext.onReady(function() {
     var start = 0,
-    limit = 5,
+    limit = 25,
     loadnotify = Ext.get('loading'),
     itemTemplate = "<li id='item{iid}'><img class='thumb {thumbclass}' src='{thumb}'></img>" +
                     "<div class='itemButtons'><div id='toggle{iid}'></div><div id='save{iid}'></div><div id='map{iid}'></div></div>" +
@@ -8,6 +8,11 @@ Ext.onReady(function() {
                     "<div class='itemInfo'>{_display_type}, uploaded by <a href='{owner_detail}'>{owner}</a> on {last_modified:date(\"F j, Y\")}</div>" +
                     "<div class='itemAbstract>{abstract}</div>"+
                     "</li>",
+    groupTemplate = "<li id='item{iid}'><img class='thumb {thumbclass}' src='{thumb}'></img>" +
+			"<div class='itemInfo'>Group</div>" +
+                        "<div class='itemTitle'><a href='{detail}'>{title}</a></div>" +
+                        "<div class=''>{description}</div>" +
+                        "</li>",
     contactTemplate = "<li id='item{iid}'><img class='thumb {thumbclass}' src='{thumb}'></img>" +
                         "<div class='itemTitle'><a href='{detail}'>{name}</a></div>" +
                         "<div class='itemInfo'>User</div>" +
@@ -30,6 +35,8 @@ Ext.onReady(function() {
 
     itemTemplate = new Ext.DomHelper.createTemplate(itemTemplate);
     itemTemplate.compile();
+    groupTemplate = new Ext.DomHelper.createTemplate(groupTemplate);
+    groupTemplate.compile();
     contactTemplate = new Ext.DomHelper.createTemplate(contactTemplate);
     contactTemplate.compile();
     filterTemplate = new Ext.DomHelper.createTemplate(filterTemplate);
@@ -119,6 +126,9 @@ Ext.onReady(function() {
             }
             if (r._type == "contact") {
                 contactTemplate.append(list, r, true);
+            }
+            else if (r._type == "group") {
+                groupTemplate.append(list, r, true);
             }
             else {
                 var item = itemTemplate.append(list,r,true);
