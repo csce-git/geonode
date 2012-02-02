@@ -11,6 +11,8 @@ from django.utils.translation import ugettext_lazy as _
 from django.contrib.auth.models import User
 from django.contrib.sites.models import Site
 
+from django.core.urlresolvers import reverse
+
 from taggit.managers import TaggableManager
 
 from actstream.actions import follow, unfollow
@@ -90,6 +92,9 @@ class Group(models.Model):
             invitation.send(from_user)
         return invitation
 
+    def get_absolute_url(self):
+        """Construct the absolute URL for this Item."""
+        return reverse('geonode.groups.views.group_detail', None, [str(self.slug)])
 
 class GroupMember(models.Model):
     
