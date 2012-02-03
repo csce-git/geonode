@@ -157,6 +157,7 @@ COLLECTION_LEV_NAMES = {
 }
 
 
+@csrf_exempt
 def maps(request, mapid=None):
     if request.method == 'GET':
         return render_to_response('maps.html', RequestContext(request))
@@ -167,7 +168,7 @@ def maps(request, mapid=None):
                 mimetype="text/plain",
                 status=401
             )
-        with transaction.commit_manually:
+        with transaction.commit_manually():
             try:
                 map = Map(owner=request.user, zoom=0, center_x=0, center_y=0)
                 map.save()
