@@ -521,7 +521,7 @@ def set_object_permissions(obj, perm_spec):
         except Group.DoesNotExist:
             user = User.objects.get(username=name)
             obj.set_user_level(user, level)
-
+@csrf_exempt
 def ajax_layer_permissions(request, layername):
     layer = get_object_or_404(Layer, typename=layername)
 
@@ -550,6 +550,7 @@ def ajax_layer_permissions(request, layername):
         mimetype='text/plain'
     )
 
+@csrf_exempt
 def ajax_map_permissions(request, mapid):
     map = get_object_or_404(Map, pk=mapid)
 
