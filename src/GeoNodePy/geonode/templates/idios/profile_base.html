@@ -70,11 +70,29 @@ Ext.onReady(function() {
         data: mapsAndLayers
     });
 
+
+    
     var cb = new Ext.grid.CheckboxSelectionModel();
     var columns = [
        { header: gettext('Type'), tpl: "<div class='data-type {type}'>&nbsp;</div>", width: 10 },
        { header: gettext('Title'), dataIndex: 'title', autoExpand: true, tpl: "<a href='{href}'> {title} </a>" },
-       { header: gettext('Date'), dataIndex: 'date', width: 30, xtype: 'datecolumn' }
+       { header: gettext('Date'), dataIndex: 'date', width: 30, 
+    	   tpl:new Ext.XTemplate(
+    	    	    "{[this.formatDate('{date}')]}", {
+    	    	    	formatDate: function(date) {
+    	    	    		if (date != 'undefined' && date.trim().length > 0  ){
+    	    	    			var dateComponent = date.split(" ");
+    	    	    			var day = (dateComponent[0]);
+    	    	    			var time = (dateComponent[1]);
+    	    	    			var dayComponent = day.split("-");
+    	    	    			var year = dayComponent[0];
+    	    	    			var month = dayComponent[1];
+    	    	    			var day = dayComponent[2];
+    	    	    			return day + "/" + month + "/" + year;
+    	    	    		}
+    	        	        return date;
+    	        	    }
+    	        	})}
     ]
 
     {% if user == profile.user %}
@@ -325,6 +343,8 @@ Ext.onReady(function() {
     }, blocking_link, {preventDefault: true});
     {% endif %}
 });
+
+
 </script>
 {% endblock %}
 
