@@ -78,8 +78,12 @@ Ext.onReady(function() {
        { header: gettext('Title'), dataIndex: 'title', autoExpand: true, tpl: "<a href='{href}'> {title} </a>" },
        { header: gettext('Date'), dataIndex: 'date', width: 30, 
     	   tpl:new Ext.XTemplate(
-    	    	    "{[this.formatDate('{date}')]}", {
+    			    '<tpl for=".">',
+    	    	    '{[this.formatDate(values.date)]}',
+    	    	    '</tpl>'
+    	    	    ,{
     	    	    	formatDate: function(date) {
+    	    	    		
     	    	    		if (date != 'undefined' && date.trim().length > 0  ){
     	    	    			var dateComponent = date.split(" ");
     	    	    			var day = (dateComponent[0]);
