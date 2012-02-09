@@ -1,3 +1,4 @@
+import os.path
 # -*- coding: UTF-8 -*-
 from django.conf import settings
 from django.db import models
@@ -6,10 +7,13 @@ from owslib.wms import WebMapService
 from owslib.csw import CatalogueServiceWeb
 from geoserver.catalog import Catalog
 from geonode.core.models import PermissionLevelMixin
-from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS
+from geonode.core.models import AUTHENTICATED_USERS, ANONYMOUS_USERS, COUNTRIES, ALL_LANGUAGES
 from geonode.geonetwork import Catalog as GeoNetwork
+from geonode.people.models import Contact
+from geonode.groups.models import Group
 from django.db.models import signals
 from django.utils.html import escape
+from taggit.managers import TaggableManager
 import httplib2
 import simplejson
 import urllib
@@ -17,16 +21,25 @@ from urlparse import urlparse
 import uuid
 from datetime import datetime
 from django.contrib.auth.models import User, Permission
-from django.utils.translation import ugettext as _
+from django.utils.translation import ugettext_lazy as _
 from django.core.exceptions import ValidationError
+from django.template.defaultfilters import slugify
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes import generic
 from string import lower
 from StringIO import StringIO
 from xml.etree.ElementTree import parse, XML
 from gs_helpers import cascading_delete
+from idios.models import ProfileBase, create_profile
 import logging
 import sys
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes import generic
+import os
+from django.core.files.storage import FileSystemStorage
 
 logger = logging.getLogger("geonode.maps.models")
+
 
 
 def bbox_to_wkt(x0, x1, y0, y1, srid="4326"):
@@ -34,6 +47,15 @@ def bbox_to_wkt(x0, x1, y0, y1, srid="4326"):
                             x0, y0, x0, y1, x1, y1, x1, y0, x0, y0)
 
 
+DEFAULT_SUPPLEMENTAL_INFORMATION=_(
+'You can customize the template to suit your \
+needs. You can add and remove fields and fill out default \
+information (e.g. contact details). Fields you can not change in \
+the default view may be accessible in the more comprehensive (and \
+more complex) advanced view. You can even use the XML editor to \
+create custom structures, but they have to be validated by the \
+system, so know what you do :-)'
+)
 
 
 ROLE_VALUES = [
@@ -50,361 +72,6 @@ ROLE_VALUES = [
     'author'
 ]
 
-COUNTRIES = (
-    ('AFG', _('Afghanistan')),
-    ('ALA', _('Aland Islands')),
-    ('ALB', _('Albania')),
-    ('DZA', _('Algeria')),
-    ('ASM', _('American Samoa')),
-    ('AND', _('Andorra')),
-    ('AGO', _('Angola')),
-    ('AIA', _('Anguilla')),
-    ('ATG', _('Antigua and Barbuda')),
-    ('ARG', _('Argentina')),
-    ('ARM', _('Armenia')),
-    ('ABW', _('Aruba')),
-    ('AUS', _('Australia')),
-    ('AUT', _('Austria')),
-    ('AZE', _('Azerbaijan')),
-    ('BHS', _('Bahamas')),
-    ('BHR', _('Bahrain')),
-    ('BGD', _('Bangladesh')),
-    ('BRB', _('Barbados')),
-    ('BLR', _('Belarus')),
-    ('BEL', _('Belgium')),
-    ('BLZ', _('Belize')),
-    ('BEN', _('Benin')),
-    ('BMU', _('Bermuda')),
-    ('BTN', _('Bhutan')),
-    ('BOL', _('Bolivia')),
-    ('BIH', _('Bosnia and Herzegovina')),
-    ('BWA', _('Botswana')),
-    ('BRA', _('Brazil')),
-    ('VGB', _('British Virgin Islands')),
-    ('BRN', _('Brunei Darussalam')),
-    ('BGR', _('Bulgaria')),
-    ('BFA', _('Burkina Faso')),
-    ('BDI', _('Burundi')),
-    ('KHM', _('Cambodia')),
-    ('CMR', _('Cameroon')),
-    ('CAN', _('Canada')),
-    ('CPV', _('Cape Verde')),
-    ('CYM', _('Cayman Islands')),
-    ('CAF', _('Central African Republic')),
-    ('TCD', _('Chad')),
-    ('CIL', _('Channel Islands')),
-    ('CHL', _('Chile')),
-    ('CHN', _('China')),
-    ('HKG', _('China - Hong Kong')),
-    ('MAC', _('China - Macao')),
-    ('COL', _('Colombia')),
-    ('COM', _('Comoros')),
-    ('COG', _('Congo')),
-    ('COK', _('Cook Islands')),
-    ('CRI', _('Costa Rica')),
-    ('CIV', _('Cote d\'Ivoire')),
-    ('HRV', _('Croatia')),
-    ('CUB', _('Cuba')),
-    ('CYP', _('Cyprus')),
-    ('CZE', _('Czech Republic')),
-    ('PRK', _('Democratic People\'s Republic of Korea')),
-    ('COD', _('Democratic Republic of the Congo')),
-    ('DNK', _('Denmark')),
-    ('DJI', _('Djibouti')),
-    ('DMA', _('Dominica')),
-    ('DOM', _('Dominican Republic')),
-    ('ECU', _('Ecuador')),
-    ('EGY', _('Egypt')),
-    ('SLV', _('El Salvador')),
-    ('GNQ', _('Equatorial Guinea')),
-    ('ERI', _('Eritrea')),
-    ('EST', _('Estonia')),
-    ('ETH', _('Ethiopia')),
-    ('FRO', _('Faeroe Islands')),
-    ('FLK', _('Falkland Islands (Malvinas)')),
-    ('FJI', _('Fiji')),
-    ('FIN', _('Finland')),
-    ('FRA', _('France')),
-    ('GUF', _('French Guiana')),
-    ('PYF', _('French Polynesia')),
-    ('GAB', _('Gabon')),
-    ('GMB', _('Gambia')),
-    ('GEO', _('Georgia')),
-    ('DEU', _('Germany')),
-    ('GHA', _('Ghana')),
-    ('GIB', _('Gibraltar')),
-    ('GRC', _('Greece')),
-    ('GRL', _('Greenland')),
-    ('GRD', _('Grenada')),
-    ('GLP', _('Guadeloupe')),
-    ('GUM', _('Guam')),
-    ('GTM', _('Guatemala')),
-    ('GGY', _('Guernsey')),
-    ('GIN', _('Guinea')),
-    ('GNB', _('Guinea-Bissau')),
-    ('GUY', _('Guyana')),
-    ('HTI', _('Haiti')),
-    ('VAT', _('Holy See (Vatican City)')),
-    ('HND', _('Honduras')),
-    ('HUN', _('Hungary')),
-    ('ISL', _('Iceland')),
-    ('IND', _('India')),
-    ('IDN', _('Indonesia')),
-    ('IRN', _('Iran')),
-    ('IRQ', _('Iraq')),
-    ('IRL', _('Ireland')),
-    ('IMN', _('Isle of Man')),
-    ('ISR', _('Israel')),
-    ('ITA', _('Italy')),
-    ('JAM', _('Jamaica')),
-    ('JPN', _('Japan')),
-    ('JEY', _('Jersey')),
-    ('JOR', _('Jordan')),
-    ('KAZ', _('Kazakhstan')),
-    ('KEN', _('Kenya')),
-    ('KIR', _('Kiribati')),
-    ('KWT', _('Kuwait')),
-    ('KGZ', _('Kyrgyzstan')),
-    ('LAO', _('Lao People\'s Democratic Republic')),
-    ('LVA', _('Latvia')),
-    ('LBN', _('Lebanon')),
-    ('LSO', _('Lesotho')),
-    ('LBR', _('Liberia')),
-    ('LBY', _('Libyan Arab Jamahiriya')),
-    ('LIE', _('Liechtenstein')),
-    ('LTU', _('Lithuania')),
-    ('LUX', _('Luxembourg')),
-    ('MKD', _('Macedonia')),
-    ('MDG', _('Madagascar')),
-    ('MWI', _('Malawi')),
-    ('MYS', _('Malaysia')),
-    ('MDV', _('Maldives')),
-    ('MLI', _('Mali')),
-    ('MLT', _('Malta')),
-    ('MHL', _('Marshall Islands')),
-    ('MTQ', _('Martinique')),
-    ('MRT', _('Mauritania')),
-    ('MUS', _('Mauritius')),
-    ('MYT', _('Mayotte')),
-    ('MEX', _('Mexico')),
-    ('FSM', _('Micronesia, Federated States of')),
-    ('MCO', _('Monaco')),
-    ('MNG', _('Mongolia')),
-    ('MNE', _('Montenegro')),
-    ('MSR', _('Montserrat')),
-    ('MAR', _('Morocco')),
-    ('MOZ', _('Mozambique')),
-    ('MMR', _('Myanmar')),
-    ('NAM', _('Namibia')),
-    ('NRU', _('Nauru')),
-    ('NPL', _('Nepal')),
-    ('NLD', _('Netherlands')),
-    ('ANT', _('Netherlands Antilles')),
-    ('NCL', _('New Caledonia')),
-    ('NZL', _('New Zealand')),
-    ('NIC', _('Nicaragua')),
-    ('NER', _('Niger')),
-    ('NGA', _('Nigeria')),
-    ('NIU', _('Niue')),
-    ('NFK', _('Norfolk Island')),
-    ('MNP', _('Northern Mariana Islands')),
-    ('NOR', _('Norway')),
-    ('PSE', _('Occupied Palestinian Territory')),
-    ('OMN', _('Oman')),
-    ('PAK', _('Pakistan')),
-    ('PLW', _('Palau')),
-    ('PAN', _('Panama')),
-    ('PNG', _('Papua New Guinea')),
-    ('PRY', _('Paraguay')),
-    ('PER', _('Peru')),
-    ('PHL', _('Philippines')),
-    ('PCN', _('Pitcairn')),
-    ('POL', _('Poland')),
-    ('PRT', _('Portugal')),
-    ('PRI', _('Puerto Rico')),
-    ('QAT', _('Qatar')),
-    ('KOR', _('Republic of Korea')),
-    ('MDA', _('Republic of Moldova')),
-    ('REU', _('Reunion')),
-    ('ROU', _('Romania')),
-    ('RUS', _('Russian Federation')),
-    ('RWA', _('Rwanda')),
-    ('BLM', _('Saint-Barthelemy')),
-    ('SHN', _('Saint Helena')),
-    ('KNA', _('Saint Kitts and Nevis')),
-    ('LCA', _('Saint Lucia')),
-    ('MAF', _('Saint-Martin (French part)')),
-    ('SPM', _('Saint Pierre and Miquelon')),
-    ('VCT', _('Saint Vincent and the Grenadines')),
-    ('WSM', _('Samoa')),
-    ('SMR', _('San Marino')),
-    ('STP', _('Sao Tome and Principe')),
-    ('SAU', _('Saudi Arabia')),
-    ('SEN', _('Senegal')),
-    ('SRB', _('Serbia')),
-    ('SYC', _('Seychelles')),
-    ('SLE', _('Sierra Leone')),
-    ('SGP', _('Singapore')),
-    ('SVK', _('Slovakia')),
-    ('SVN', _('Slovenia')),
-    ('SLB', _('Solomon Islands')),
-    ('SOM', _('Somalia')),
-    ('ZAF', _('South Africa')),
-    ('ESP', _('Spain')),
-    ('LKA', _('Sri Lanka')),
-    ('SDN', _('Sudan')),
-    ('SUR', _('Suriname')),
-    ('SJM', _('Svalbard and Jan Mayen Islands')),
-    ('SWZ', _('Swaziland')),
-    ('SWE', _('Sweden')),
-    ('CHE', _('Switzerland')),
-    ('SYR', _('Syrian Arab Republic')),
-    ('TJK', _('Tajikistan')),
-    ('THA', _('Thailand')),
-    ('TLS', _('Timor-Leste')),
-    ('TGO', _('Togo')),
-    ('TKL', _('Tokelau')),
-    ('TON', _('Tonga')),
-    ('TTO', _('Trinidad and Tobago')),
-    ('TUN', _('Tunisia')),
-    ('TUR', _('Turkey')),
-    ('TKM', _('Turkmenistan')),
-    ('TCA', _('Turks and Caicos Islands')),
-    ('TUV', _('Tuvalu')),
-    ('UGA', _('Uganda')),
-    ('UKR', _('Ukraine')),
-    ('ARE', _('United Arab Emirates')),
-    ('GBR', _('United Kingdom')),
-    ('TZA', _('United Republic of Tanzania')),
-    ('USA', _('United States of America')),
-    ('VIR', _('United States Virgin Islands')),
-    ('URY', _('Uruguay')),
-    ('UZB', _('Uzbekistan')),
-    ('VUT', _('Vanuatu')),
-    ('VEN', _('Venezuela (Bolivarian Republic of)')),
-    ('VNM', _('Viet Nam')),
-    ('WLF', _('Wallis and Futuna Islands')),
-    ('ESH', _('Western Sahara')),
-    ('YEM', _('Yemen')),
-    ('ZMB', _('Zambia')),
-    ('ZWE', _('Zimbabwe')),
-)
-
-# Taken from http://www.w3.org/WAI/ER/IG/ert/iso639.htm
-ALL_LANGUAGES = (
-    ('abk', 'Abkhazian'),
-    ('aar', 'Afar'),
-    ('afr', 'Afrikaans'),
-    ('amh', 'Amharic'),
-    ('ara', 'Arabic'),
-    ('asm', 'Assamese'),
-    ('aym', 'Aymara'),
-    ('aze', 'Azerbaijani'),
-    ('bak', 'Bashkir'),
-    ('ben', 'Bengali'),
-    ('bih', 'Bihari'),
-    ('bis', 'Bislama'),
-    ('bre', 'Breton'),
-    ('bul', 'Bulgarian'),
-    ('bel', 'Byelorussian'),
-    ('cat', 'Catalan'),
-    ('cos', 'Corsican'),
-    ('dan', 'Danish'),
-    ('dzo', 'Dzongkha'),
-    ('eng', 'English'),
-    ('fra', 'French'),
-    ('epo', 'Esperanto'),
-    ('est', 'Estonian'),
-    ('fao', 'Faroese'),
-    ('fij', 'Fijian'),
-    ('fin', 'Finnish'),
-    ('fry', 'Frisian'),
-    ('glg', 'Gallegan'),
-    ('kal', 'Greenlandic'),
-    ('grn', 'Guarani'),
-    ('guj', 'Gujarati'),
-    ('hau', 'Hausa'),
-    ('heb', 'Hebrew'),
-    ('hin', 'Hindi'),
-    ('hun', 'Hungarian'),
-    ('ind', 'Indonesian'),
-    ('ina', 'Interlingua (International Auxiliary language Association)'),
-    ('iku', 'Inuktitut'),
-    ('ipk', 'Inupiak'),
-    ('ita', 'Italian'),
-    ('jpn', 'Japanese'),
-    ('kan', 'Kannada'),
-    ('kas', 'Kashmiri'),
-    ('kaz', 'Kazakh'),
-    ('khm', 'Khmer'),
-    ('kin', 'Kinyarwanda'),
-    ('kir', 'Kirghiz'),
-    ('kor', 'Korean'),
-    ('kur', 'Kurdish'),
-    ('oci', 'Langue d \'Oc (post 1500)'),
-    ('lao', 'Lao'),
-    ('lat', 'Latin'),
-    ('lav', 'Latvian'),
-    ('lin', 'Lingala'),
-    ('lit', 'Lithuanian'),
-    ('mlg', 'Malagasy'),
-    ('mlt', 'Maltese'),
-    ('mar', 'Marathi'),
-    ('mol', 'Moldavian'),
-    ('mon', 'Mongolian'),
-    ('nau', 'Nauru'),
-    ('nep', 'Nepali'),
-    ('nor', 'Norwegian'),
-    ('ori', 'Oriya'),
-    ('orm', 'Oromo'),
-    ('pan', 'Panjabi'),
-    ('pol', 'Polish'),
-    ('por', 'Portuguese'),
-    ('pus', 'Pushto'),
-    ('que', 'Quechua'),
-    ('roh', 'Rhaeto-Romance'),
-    ('run', 'Rundi'),
-    ('rus', 'Russian'),
-    ('smo', 'Samoan'),
-    ('sag', 'Sango'),
-    ('san', 'Sanskrit'),
-    ('scr', 'Serbo-Croatian'),
-    ('sna', 'Shona'),
-    ('snd', 'Sindhi'),
-    ('sin', 'Singhalese'),
-    ('ssw', 'Siswant'),
-    ('slv', 'Slovenian'),
-    ('som', 'Somali'),
-    ('sot', 'Sotho'),
-    ('spa', 'Spanish'),
-    ('sun', 'Sudanese'),
-    ('swa', 'Swahili'),
-    ('tgl', 'Tagalog'),
-    ('tgk', 'Tajik'),
-    ('tam', 'Tamil'),
-    ('tat', 'Tatar'),
-    ('tel', 'Telugu'),
-    ('tha', 'Thai'),
-    ('tir', 'Tigrinya'),
-    ('tog', 'Tonga (Nyasa)'),
-    ('tso', 'Tsonga'),
-    ('tsn', 'Tswana'),
-    ('tur', 'Turkish'),
-    ('tuk', 'Turkmen'),
-    ('twi', 'Twi'),
-    ('uig', 'Uighur'),
-    ('ukr', 'Ukrainian'),
-    ('urd', 'Urdu'),
-    ('uzb', 'Uzbek'),
-    ('vie', 'Vietnamese'),
-    ('vol', 'Volapük'),
-    ('wol', 'Wolof'),
-    ('xho', 'Xhosa'),
-    ('yid', 'Yiddish'),
-    ('yor', 'Yoruba'),
-    ('zha', 'Zhuang'),
-    ('zul', 'Zulu'),
-)
 
 UPDATE_FREQUENCIES = [
     'annually',
@@ -458,63 +125,8 @@ TOPIC_CATEGORIES = [
     'utilitiesCommunication'
 ]
 
-CONTACT_FIELDS = [
-    "name",
-    "organization",
-    "position",
-    "voice",
-    "facsimile",
-    "delivery_point",
-    "city",
-    "administrative_area",
-    "postal_code",
-    "country",
-    "email",
-    "role"
-]
-
-DEFAULT_SUPPLEMENTAL_INFORMATION=_(
-'You can customize the template to suit your \
-needs. You can add and remove fields and fill out default \
-information (e.g. contact details). Fields you can not change in \
-the default view may be accessible in the more comprehensive (and \
-more complex) advanced view. You can even use the XML editor to \
-create custom structures, but they have to be validated by the \
-system, so know what you do :-)'
-)
-
 class GeoNodeException(Exception):
     pass
-
-
-class Contact(models.Model):
-    user = models.ForeignKey(User, blank=True, null=True)
-    name = models.CharField(_('Individual Name'), max_length=255, blank=True, null=True)
-    organization = models.CharField(_('Organization Name'), max_length=255, blank=True, null=True)
-    position = models.CharField(_('Position Name'), max_length=255, blank=True, null=True)
-    voice = models.CharField(_('Voice'), max_length=255, blank=True, null=True)
-    fax = models.CharField(_('Facsimile'),  max_length=255, blank=True, null=True)
-    delivery = models.CharField(_('Delivery Point'), max_length=255, blank=True, null=True)
-    city = models.CharField(_('City'), max_length=255, blank=True, null=True)
-    area = models.CharField(_('Administrative Area'), max_length=255, blank=True, null=True)
-    zipcode = models.CharField(_('Postal Code'), max_length=255, blank=True, null=True)
-    country = models.CharField(choices=COUNTRIES, max_length=3, blank=True, null=True)
-    email = models.EmailField(blank=True, null=True)
-
-    def clean(self):
-        # the specification says that either name or organization should be provided
-        valid_name = (self.name != None and self.name != '')
-        valid_organization = (self.organization != None and self.organization !='')
-        if not (valid_name or valid_organization):
-            raise ValidationError('Either name or organization should be provided')
-
-    def get_absolute_url(self):
-        return ('profiles_profile_detail', (), { 'username': self.user.username })
-    get_absolute_url = models.permalink(get_absolute_url)
-
-    def __unicode__(self):
-        return u"%s (%s)" % (self.name, self.organization)
-
 
 _viewer_projection_lookup = {
     "EPSG:900913": {
@@ -626,7 +238,7 @@ class LayerManager(models.Manager):
                     exception_type, error, traceback = sys.exc_info()
                 else:
                     if verbosity > 0:
-                        msg = "Stopping process because --strict=True and an error was found."
+                        msg = "Stopping process because --ignore-errors was not set and an error was found."
                         print >> sys.stderr, msg
                     raise Exception('Failed to process %s' % resource.name, e), None, sys.exc_info()[2]
 
@@ -639,9 +251,6 @@ class LayerManager(models.Manager):
             output.append(info)
             if verbosity > 0:
                 print >> console, msg
-
-        # Doing a logout since we know we don't need this object anymore.
-        self.geonetwork.logout()
 
         return output
 
@@ -911,7 +520,7 @@ class Layer(models.Model, PermissionLevelMixin):
     # see poc property definition below
 
     # section 3
-    keywords = models.TextField(_('keywords'), blank=True, null=True)
+    keywords = TaggableManager(_('keywords'), help_text=_("A space or comma-separated list of keywords"), blank=True)
     keywords_region = models.CharField(_('keywords region'), max_length=3, choices= COUNTRIES, default = 'USA')
     constraints_use = models.CharField(_('constraints use'), max_length=255, choices = [(x, x) for x in CONSTRAINT_OPTIONS], default='copyright')
     constraints_other = models.TextField(_('constraints other'), blank=True, null=True)
@@ -967,12 +576,12 @@ class Layer(models.Model, PermissionLevelMixin):
                     'outputFormat': mime
                 })
             types = [
-                ("zip", _("Zipped Shapefile"), "SHAPE-ZIP"),
-                ("gml", _("GML 2.0"), "gml2"),
-                ("gml", _("GML 3.1.1"), "text/xml; subtype=gml/3.1.1"),
-                ("csv", _("CSV"), "csv"),
-                ("excel", _("Excel"), "excel"),
-                ("json", _("GeoJSON"), "json")
+                ("zip", ("Zipped Shapefile"), "SHAPE-ZIP"),
+                ("gml", ("GML 2.0"), "gml2"),
+                ("gml", ("GML 3.1.1"), "text/xml; subtype=gml/3.1.1"),
+                ("csv", ("CSV"), "csv"),
+                ("excel", ("Excel"), "excel"),
+                ("json", ("GeoJSON"), "json")
             ]
             links.extend((ext, name, wfs_link(mime)) for ext, name, mime in types)
         elif self.resource.resource_type == "coverage":
@@ -1025,9 +634,9 @@ class Layer(models.Model, PermissionLevelMixin):
             })
 
         types = [
-            ("jpg", _("JPEG"), "image/jpeg"),
-            ("pdf", _("PDF"), "application/pdf"),
-            ("png", _("PNG"), "image/png")
+            ("jpg", ("JPEG"), "image/jpeg"),
+            ("pdf", ("PDF"), "application/pdf"),
+            ("png", ("PNG"), "image/png")
         ]
 
         links.extend((ext, name, wms_link(mime)) for ext, name, mime in types)
@@ -1042,8 +651,8 @@ class Layer(models.Model, PermissionLevelMixin):
             'mode': "refresh"
         })
 
-        links.append(("KML", _("KML"), kml_reflector_link_download))
-        links.append(("KML", _("View in Google Earth"), kml_reflector_link_view))
+        links.append(("KML", ("KML"), kml_reflector_link_download))
+        links.append(("KML", ("View in Google Earth"), kml_reflector_link_view))
 
         return links
 
@@ -1310,7 +919,7 @@ class Layer(models.Model, PermissionLevelMixin):
         if self.poc and self.poc.user:
             self.publishing.attribution = str(self.poc.user)
             profile = Contact.objects.get(user=self.poc.user)
-            self.publishing.attribution_link = settings.SITEURL[:-1] + profile.get_absolute_url()
+            #self.publishing.attribution_link = settings.SITEURL[:-1] + profile.get_absolute_url()
             Layer.objects.gs_catalog.save(self.publishing)
 
     def  _populate_from_gs(self):
@@ -1335,8 +944,13 @@ class Layer(models.Model, PermissionLevelMixin):
         meta = self.metadata_csw()
         if meta is None:
             return
-        #self.keywords = ' '.join([word for word in meta.identification.keywords['list'] if isinstance(word,str)])
-        self.keywords = ''
+        kw_list = reduce(
+                lambda x, y: x + y["keywords"],
+                meta.identification.keywords,
+                [])
+        kw_list = filter(lambda x: x is not None, kw_list)
+        self.keywords.add(*kw_list)
+        
         if hasattr(meta.distribution, 'online'):
             onlineresources = [r for r in meta.distribution.online if r.protocol == "WWW:LINK-1.0-http--link"]
             if len(onlineresources) == 1:
@@ -1345,10 +959,11 @@ class Layer(models.Model, PermissionLevelMixin):
                 self.distribution_description = res.description
 
     def keyword_list(self):
-        if self.keywords is None:
-            return []
+        keywords_qs = self.keywords.all()
+        if keywords_qs:
+            return [kw.name for kw in keywords_qs]
         else:
-            return self.keywords.split(" ")
+            return []
 
     def set_bbox(self, box, srs=None):
         """
@@ -1388,7 +1003,10 @@ class Layer(models.Model, PermissionLevelMixin):
         for username in current_perms['users'].keys():
             user = User.objects.get(username=username)
             self.set_user_level(user, self.LEVEL_NONE)
-
+        for groupname in current_perms['groups'].keys():
+            group = Group.objects.get(name=groupname)
+            self.set_group_level(user, self.LEVEL_NONE)
+            
         # assign owner admin privs
         if self.owner:
             self.set_user_level(self.owner, self.LEVEL_ADMIN)
@@ -1444,6 +1062,8 @@ class Map(models.Model, PermissionLevelMixin):
     """
     The last time the map was modified.
     """
+    
+    keywords = TaggableManager(_('keywords'), help_text=_("A space or comma-separated list of keywords"), blank=True)
 
     def __unicode__(self):
         return '%s by %s' % (self.title, (self.owner.username if self.owner else "<Anonymous>"))
@@ -1463,7 +1083,8 @@ class Map(models.Model, PermissionLevelMixin):
 
     @property
     def local_layers(self): 
-        return True
+        names = [layer.name for layer in self.layers]
+        return Layer.objects.filter(typename__in=names)
 
     def json(self, layer_filter):
         map_layers = MapLayer.objects.filter(map=self.id)
@@ -1599,6 +1220,8 @@ class Map(models.Model, PermissionLevelMixin):
         
         for layer in self.layer_set.all():
             layer.delete()
+            
+        self.keywords.add(*conf['map'].get('keywords', []))
 
         for ordering, layer in enumerate(layers):
             self.layer_set.add(
@@ -1606,6 +1229,13 @@ class Map(models.Model, PermissionLevelMixin):
                     self, layer, source_for(layer), ordering
             ))
         self.save()
+
+    def keyword_list(self):
+        keywords_qs = self.keywords.all()
+        if keywords_qs:
+            return [kw.name for kw in keywords_qs]
+        else:
+            return []
 
     def get_absolute_url(self):
         return '/maps/%i' % self.id
@@ -1631,7 +1261,10 @@ class Map(models.Model, PermissionLevelMixin):
         for username in current_perms['users'].keys():
             user = User.objects.get(username=username)
             self.set_user_level(user, self.LEVEL_NONE)
-
+        for groupname in current_perms['groups'].keys():
+            group = Group.objects.get(name=groupname)
+            self.set_group_level(user, self.LEVEL_NONE)
+            
         # assign owner admin privs
         if self.owner:
             self.set_user_level(self.owner, self.LEVEL_ADMIN)    
@@ -1890,6 +1523,173 @@ class ContactRole(models.Model):
     class Meta:
         unique_together = (("contact", "layer", "role"),)
 
+class search_history(models.Model):
+    search_keyword = models.CharField(max_length=100, db_column='search_keyword')
+    search_date = models.DateTimeField(db_column='search_date')
+    search_returned = models.PositiveIntegerField(db_column='search_returned');
+    
+    class Meta:
+        db_table = u'search_history'
+
+    def __unicode__(self):
+        return self.resource
+
+class Collection(models.Model, PermissionLevelMixin):
+    """
+    Collection Class for handling groups of Layers and/or Maps
+    """
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255)
+    description = models.TextField(null=True, blank=True)
+    owner = models.ForeignKey(User, blank=True, null=True)
+    layers = models.ManyToManyField(Layer, null=True, blank=True)
+    maps = models.ManyToManyField(Map, null=True, blank=True)
+
+    def get_absolute_url(self):
+        return '/collections/%s' % self.slug
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.slug = slugify(self.name)
+        super(Collection, self).save(*args, **kwargs)       
+ 
+    class Meta:
+        # custom permissions, 
+        # change and delete are standard in django
+        permissions = (('view_collection', 'Can view'), 
+                       ('change_collection_permissions', "Can change permissions"), )
+
+    # Permission Level Constants
+    # LEVEL_NONE inherited
+    LEVEL_READ  = 'collection_readonly'
+    LEVEL_WRITE = 'collection_readwrite'
+    LEVEL_ADMIN = 'collection_admin'
+                 
+    def set_default_permissions(self):
+        self.set_gen_level(ANONYMOUS_USERS, self.LEVEL_READ)
+        self.set_gen_level(AUTHENTICATED_USERS, self.LEVEL_READ) 
+
+        # remove specific user permissions
+        current_perms =  self.get_all_level_info()
+        for username in current_perms['users'].keys():
+            user = User.objects.get(username=username)
+            self.set_user_level(user, self.LEVEL_NONE)
+
+        # assign owner admin privs
+        if self.owner:
+            self.set_user_level(self.owner, self.LEVEL_ADMIN)
+
+class ThumbnailManager(models.Manager):
+    def __init__(self):
+        models.Manager.__init__(self)
+        self.storage = FileSystemStorage(
+            location = os.path.join(settings.PROJECT_ROOT, "static","thumbs"),
+            base_url = settings.STATICFILES_URL + "thumbs/"
+        )
+        if not os.path.exists(self.storage.location):
+            os.makedirs(self.storage.location)
+    def get_thumbnail(self,obj,allow_null=True):
+        thumb_type = ContentType.objects.get_for_model(obj)
+        thumbs = list(self.filter(content_type__pk=thumb_type.id,object_id=obj.id))
+        if not allow_null and not thumbs:
+            thumbs.append(Thumbnail(content_object=obj))
+        return thumbs and thumbs[0] or None
+    def get_thumbnails(self,objs):
+        """For the provided objects of the same type, get a dict
+        with object.id as key and thumbnail as value. objs without
+        thumbs will not be present in the dict.
+        """
+        if not objs: return []
+        try:
+            not_null = ( o for o in objs if o is not None ).next()
+        except StopIteration:
+            return []
+        thumb_type = ContentType.objects.get_for_model(not_null)
+        thumbs = self.filter(content_type__pk=thumb_type.id)
+        ids = [ o.id for o in objs]
+        thumbs = thumbs.filter(object_id__in=ids)
+        return dict([ (t.content_object.id,t) for t in thumbs])
+
+class Thumbnail(models.Model):
+    objects = ThumbnailManager()
+
+    thumb_spec = models.TextField()
+    content_type = models.ForeignKey(ContentType)
+    object_id = models.PositiveIntegerField()
+    content_object = generic.GenericForeignKey()
+
+    def _path(self):
+        if isinstance(self.content_object,Map):
+            parts = "map",str(self.content_object.id)
+        else:
+            parts = "layer",self.content_object.uuid
+        return "".join(parts) + ".png"
+    def get_thumbnail_url(self):
+        return Thumbnail.objects.storage.url(self._path())
+    def get_thumbnail_path(self):
+        return Thumbnail.objects.storage.path(self._path())
+    def delete(self):
+        path = self.get_thumbnail_path()
+        if os.path.exists(path):
+            os.unlink(path)
+        super(Thumbnail,self).delete()
+    def set_spec(self,spec):
+        self.thumb_spec = spec
+        self.generate_thumbnail()
+        self.save()
+
+    def generate_thumbnail(self):
+        http = httplib2.Http()
+        url = "%srest/printng/render.png" % settings.GEOSERVER_BASE_URL
+        http.add_credentials(_user, _password)
+        netloc = urlparse(url).netloc
+        http.authorizations.append(
+        httplib2.BasicAuthentication(
+            (_user,_password),
+            netloc,
+            url,
+            {},
+            None,
+            None,
+            http
+        ))
+        resp, content = http.request(url,"POST",str(self.thumb_spec))
+        if resp.status < 200 or resp.status > 299:
+            logging.warning('Error generating thumbnail %s',content)
+            raise Exception('Error generating thumbnail')
+        with open(self.get_thumbnail_path(),"wb") as fp:
+            fp.write(content)
+    
+
+
+class GroupLayer(models.Model):
+    
+    group = models.ForeignKey(Group)
+    layer = models.ForeignKey(Layer)
+
+    @classmethod
+    def layers_for_group(cls, group):
+        layer_ids = cls.objects.filter(group=group).values_list('layer', flat=True)
+        return Layer.objects.filter(id__in=layer_ids)
+
+    class Meta:
+        unique_together = (("group", "layer"),)
+
+
+class GroupMap(models.Model):
+    
+    group = models.ForeignKey(Group)
+    map = models.ForeignKey(Map)
+
+    @classmethod
+    def maps_for_group(cls, group):
+        map_ids = cls.objects.filter(group=group).values_list('map', flat=True)
+        return Map.objects.filter(id__in=map_ids)
+
+    class Meta:
+        unique_together = (("group", "map"),)
+
+
 def pre_delete_layer(instance, sender, **kwargs): 
     """
     Removes the layer from GeoServer and GeoNetwork
@@ -1918,16 +1718,9 @@ def post_save_layer(instance, sender, **kwargs):
         instance._populate_from_gn()
         instance.save(force_update=True)
 
-class search_history(models.Model):
-    search_keyword = models.CharField(max_length=100, db_column='search_keyword')
-    search_date = models.DateTimeField(db_column='search_date')
-    search_returned = models.PositiveIntegerField(db_column='search_returned');
-    
-    class Meta:
-        db_table = u'search_history'
-
-    def __unicode__(self):
-        return self.resource
+def post_save_service(instance, sender, created, **kwargs):
+    if created:
+        instance.set_default_permissions()    
 
 def pre_delete_service(instance, sender, **kwargs):
     if instance.method == 'H':
@@ -1935,6 +1728,28 @@ def pre_delete_service(instance, sender, **kwargs):
         gn.control_harvesting_task('stop', [instance.external_id]) 
         gn.control_harvesting_task('remove', [instance.external_id]) 
 
+def create_user_profile(instance, sender, created, **kwargs):
+    try:
+        profile = Contact.objects.get(user=instance)
+    except Contact.DoesNotExist:
+        profile = Contact(user=instance)
+        profile.name = instance.username
+        profile.save()
+
+def post_save_collection(instance, sender, created, **kwargs):
+    if created:
+        instance.set_default_permissions()
+
+def _remove_thumb(instance, sender, **kw):
+    for t in Thumbnail.objects.filter(object_id=instance.id):
+        t.delete()
+
+signals.pre_delete.connect(_remove_thumb, sender=Layer)
+signals.pre_delete.connect(_remove_thumb, sender=Map)
 signals.pre_delete.connect(pre_delete_layer, sender=Layer)
 signals.post_save.connect(post_save_layer, sender=Layer)
 signals.pre_delete.connect(pre_delete_service, sender=Service)
+signals.post_save.connect(post_save_service, sender=Service)
+signals.post_save.disconnect(create_profile, sender=User)
+signals.post_save.connect(create_user_profile, sender=User)
+signals.post_save.connect(post_save_collection, sender=Collection)

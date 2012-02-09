@@ -1,0 +1,29 @@
+{% extends "groups/group_base.html" %}
+
+{% block sidebar %}
+<div class="twocol">
+    <h2>Share maps to group</h2>
+    <form method="POST" action="">
+    {% csrf_token %}
+    {{ form }}
+    <input type="submit" value="Add maps" />
+    </form>
+    
+    {% if maps_added %}
+        <p>Added map(s) 
+        {% for map in maps_added %}
+        {{ map.title }} 
+        {% endfor %}
+        to group {{ object.title }}.
+        </p>
+    {% endif %}
+    {% if current_maps %}
+    <h2>Group's maps</h2>
+    <ul>
+        {% for map in current_maps %}
+        <li><a href="{{ map.get_absolute_url }}">{{ map.title }}</a></li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endblock %}

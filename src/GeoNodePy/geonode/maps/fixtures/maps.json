@@ -16,42 +16,6 @@
     }
 },
 {
-    "pk": 1, 
-    "model": "maps.contact", 
-    "fields": {
-        "city": null, 
-        "fax": null, 
-        "name": "Default Contact", 
-        "area": null, 
-        "country": null, 
-        "zipcode": null, 
-        "delivery": null, 
-        "user": null, 
-        "position": null, 
-        "organization": "GeoNode", 
-        "voice": null, 
-        "email": null
-    }
-}, 
-{
-    "pk": 2, 
-    "model": "maps.contact", 
-    "fields": {
-        "city": null, 
-        "fax": null, 
-        "name": "Default Author", 
-        "area": null, 
-        "country": null, 
-        "zipcode": null, 
-        "delivery": null, 
-        "user": null, 
-        "position": null, 
-        "organization": "Geonode", 
-        "voice": null, 
-        "email": null
-    }
-},
-{
     "pk": 1,
     "model": "core.objectrole",
     "fields": {
@@ -136,6 +100,91 @@
         ],
         "content_type": ["maps", "layer"]
     }
+},
+{
+    "pk": 7,
+    "model": "core.objectrole",
+    "fields": {
+        "codename": "collection_readonly",
+        "title": "Read Only",
+        "list_order": 0,
+        "permissions": [ 
+            ["view_collection", "maps", "collection"]
+        ],
+        "content_type": ["maps", "collection"]
+    }
+},
+{
+    "pk": 8,
+    "model": "core.objectrole",
+    "fields": {
+        "codename": "collection_readwrite",
+        "title": "Read/Write",
+        "list_order": 1,
+        "permissions": [ 
+            ["view_collection", "maps", "collection"],
+            ["change_collection", "maps", "collection"]
+        ],
+        "content_type": ["maps", "collection"]
+    }
+},
+{
+    "pk": 9,
+    "model": "core.objectrole",
+    "fields": {
+        "codename": "collection_admin",
+        "title": "Administrative",
+        "list_order": 2,
+        "permissions": [ 
+            ["view_collection", "maps", "collection"],
+            ["change_collection", "maps", "collection"],
+            ["delete_collection", "maps", "collection"],
+            ["change_collection_permissions", "maps", "collection"]
+        ],
+        "content_type": ["maps", "collection"]
+    }
+},
+{
+    "pk": 10,
+    "model": "core.objectrole",
+    "fields": {
+        "codename": "service_readonly",
+        "title": "Read Only",
+        "list_order": 0,
+        "permissions": [ 
+            ["view_service", "maps", "service"]
+        ],
+        "content_type": ["maps", "service"]
+    }
+},
+{
+    "pk": 11, 
+    "model": "core.objectrole",
+    "fields": {
+        "codename": "service_readwrite",
+        "title": "Read/Write",
+        "list_order": 1,
+        "permissions": [ 
+            ["view_service", "maps", "service"],
+            ["change_service", "maps", "service"]
+        ],
+        "content_type": ["maps", "service"]
+    }
+},
+{
+    "pk": 12,
+    "model": "core.objectrole",
+    "fields": {
+        "codename": "service_admin",
+        "title": "Administrative",
+        "list_order": 2,
+        "permissions": [ 
+            ["view_service", "maps", "service"],
+            ["change_service", "maps", "service"],
+            ["delete_service", "maps", "service"],
+            ["change_service_permissions", "maps", "service"]
+        ],
+        "content_type": ["maps", "service"]
+    }
 }
-
 ]

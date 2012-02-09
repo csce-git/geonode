@@ -4,6 +4,7 @@
 {% block title %} Services -- {{ block.super }} {% endblock %}
 
 {% block main %}
+<div class="twocol">
 {% if services %}
 <ul>
 {% for service in services %}
@@ -13,4 +14,5 @@
 {% else %}
 <h3>No services registered</h3>
 {% endif %}
+</div>
 {% endblock %}

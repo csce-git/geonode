@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load announcement_tags %}
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html>
 <head>
@@ -9,7 +10,9 @@
   <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}theme/boilerplate-min.css" media="screen" />
   <!--[if lte IE 6]><link rel="stylesheet" href="{{ STATIC_URL }}theme/boilerplate-ie-min.css" type="text/css" media="screen" charset="utf-8"><![endif]-->
   <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}theme/site.css" media="screen" />
-  <script type="text/javascript" src="{{ STATIC_URL }}static/script/jquery-1.6.4.min.js"></script>
+  <link rel="stylesheet" href="{{ STATIC_URL }}uni_form/uni-form.css" type="text/css" />
+  <link rel="stylesheet" href="{{ STATIC_URL }}uni_form/default.uni-form.css" type="text/css" />
+  <script type="text/javascript" src="{{ STATIC_URL }}static/script/jquery-1.7.1.min.js"></script>
   <script type="text/javascript" src="{% url django.views.i18n.javascript_catalog %}"></script>
   <script type="text/javascript" src="{% url lang %}"></script>
   {% endblock %}
@@ -21,7 +24,7 @@
       <a id="logo" href="{% url geonode.views.index %}">GeoNode</a>
       <div id="login-area">
         {% if user.is_authenticated %}
-          <a href="{% if user.get_profile %}{{ user.get_profile.get_absolute_url }}{% else %}{% url profiles_create_profile %}{% endif %}">{{ user.username}}</a> (<a href="{% url auth_password_change %}">{% trans "Change password" %}</a> | <a href="{% url auth_logout %}">{% trans "Log out" %}</a>)
+          <a href="{% if user.get_profile %}{{ user.get_profile.get_absolute_url }}{% else %}{% url profile_create %}{% endif %}">{{ user.username}}</a> (<a href="{% url auth_password_change %}">{% trans "Change password" %}</a> | <a href="{% url auth_logout %}">{% trans "Log out" %}</a>)
         {% else %}
           <!-- this should be updated to a url var --><a href="/accounts/login">{% trans "Sign in" %}</a>
           {% if REGISTRATION_OPEN %} or <a href="{% url registration_register %}">{% trans "Register" %}</a>{% endif %}
@@ -31,14 +34,20 @@
     </div><!-- /.wrap -->
   </div><!-- /#header -->
   <div id="crossbar">
-    <div class="wrap selfclear">             
+    <div class="wrap selfclear">
       {% block nav %}
     <ul id="sitenav" class="selfclear">
-        <li class="home"><a href="{% url geonode.views.index %}">{% trans "Home" %}</a></li> 
+        <li class="home"><a href="{% url geonode.views.index %}">{% trans "Home" %}</a></li>
         <li class=""><a class="" id="dataLink" href="{% url geonode.maps.views.browse_data %}">{% trans "Data" %}</a></li>
         <li class=""><a class="" id="mapsLink" href="{% url geonode.maps.views.maps %}">{% trans "Maps" %}</a></li>
+        <li class=""><a class="" id="groupsLink" href="{% url group_list %}">{% trans "Groups" %}</a></li>
     {% if user.is_authenticated %}
+        <li class=""><a class="" id="profileLink" href="{% url profile_detail user.username %}">{% trans "Profile" %}</a></li>
+		<li class=""><a class="" id="messagesLink" href="{% url messages_inbox %}">{% trans "Messages" %}</a></li>
         <li class=""><a class="" id="profileLink" href="{% url profiles_profile_detail user.username %}">{% trans "Profile" %}</a></li>
+        <li class=""><a id="noticeLink" href="{% url notification_notices %}">{% trans "Notifications" %}
+        {% if notice_unseen_count > 0 %}({{ notice_unseen_count }}){% endif %}</a></li>
+        <li class=""><a class="" id="messagesLink" href="{% url messages_inbox %}">{% trans "Messages" %}</a></li>
     {% if user.is_staff %}
         <li class=""><a class="" id="adminLink" href="/admin/">{% trans "Admin" %}</a></li>
     {% endif %}
@@ -70,20 +79,32 @@
 
     </div><!-- /.wrap -->
   </div><!-- /#crossbar -->
+  {% fetch_announcements as announcements_list %}
+  {% if announcements_list %}
+  <div id="announcements">
+      <ul>
+      {% for announcement in announcements_list %}
+      <div class="announcement">
+          <li><span class="announceTitle">{{ announcement.title }}</span>: <span class="announceContent">{{ announcement.content }}</span> - <a href="{% url announcement_hide announcement.id %}?next={{ request.get_full_path }}" class="dismiss">Clear</a></dd>
+      </div>
+      {% endfor %}
+      </ul>
+  </div> <!-- /#announcements -->
+  {% endif %}
   <div id="main">
-    <div class="wrap selfclear">       
+    <div class="wrap selfclear">
       {% block main %}{% endblock %}
       {% block content %}{% endblock %}
       {% block sidebar %}{% endblock %}
     </div><!-- /.wrap -->
   </div><!-- /#main -->
   <div id="footer">
-    <div class="wrap selfclear">             
+    <div class="wrap selfclear">
       {% block footer %}
       <div class="onecol">
         Powered by <a href="http://geonode.org">{% trans "GeoNode" %}</a>
         | <strong>{% trans "Need Help?" %}</strong>
-        <a href="{% url geonode.views.static "help" %}">{% trans "Help" %}</a> 
+        <a href="{% url geonode.views.static "help" %}">{% trans "Help" %}</a>
         | <a href="{% url geonode.views.developer %}">{% trans "For Developers" %}</a>
       </div>
       {% endblock %}

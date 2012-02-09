@@ -111,6 +111,7 @@
                 }
             });
 {% endif %}
+            {% include "maps/thumbnail_help.js" %}
         });
 
         function showStyle(styleName) {
@@ -146,21 +147,21 @@
 
 {% block main %}
 <div class="twocol">
-	<div id="description">
-		<h3>{{ layer.resource.title|default:layer.typename }}</h3>
-		{% overall_rating layer "layer" as layer_rating %}
-		<div class="overall_rating" data-rating="{{ layer_rating }}"></div>
-		<g:plusone size="small" href="http://{{ request.get_host }}{{ request.get_full_path }}"></g:plusone>
-		<div class="fb-like" data-href="http://{{ request.get_host }}{{ request.get_full_path }}" data-send="false" data-width="50" data-layout="button_count" data-show-faces="false"></div>
-	</div>
-<p> <strong>{% trans "Abstract" %}:</strong> {{ layer.abstract|default:_("No abstract for this layer.")|linebreaks }} </p>
+<div id="description">
+	<h3>{{ layer.resource.title|default:layer.typename }}</h3>
+	<g:plusone size="small" href="http://{{ request.get_host }}{{ request.get_full_path }}"></g:plusone>
+	<div class="fb-like" data-href="http://{{ request.get_host }}{{ request.get_full_path }}" data-send="false" data-width="50" data-layout="button_count" data-show-faces="false"></div>
+</div>
+{% overall_rating layer "layer" as layer_rating %}
+<div class="overall_rating" data-rating="{{ layer_rating }}"></div>
+<p> <strong>{% trans "Abstract" %}:</strong> {{ layer.abstract|default:_("No abstract for this layer.") }} </p>
 
 <div id="preview_map"></div>
 
 
 <h3>{% trans "Layer Information" %}</h3>
 {% if layer.display_type %}<p> <strong>{% trans "Type" %}:</strong> {{ layer.display_type }} </p>{% endif %}
-{% if layer.keywords %}<p> <strong>{% trans "Keywords" %}:</strong> {{ layer.keywords }}</p>{% endif %}
+{% if layer.keywords %}<p> <strong>{% trans "Keywords" %}:</strong> {{ layer.keywords.all|join:", " }}</p>{% endif %}
 {% if layer.edition %}<p> <strong>{% trans "Edition" %}:</strong> {{ layer.edition }}</p>{% endif %}
 {% if layer.topic_category %}<p> <strong>{% trans "Topic Category" %}:</strong> {{ layer.topic_category }}</p>{% endif %}
 
@@ -370,6 +371,14 @@
     <h3>{% trans "Permissions" %}</h3>
       <div id="permissions_form"></div>
     {% endif %}
+    {% if groups %}
+        <h3>{% trans "Groups" %}</h3>
+        <ul>
+        {% for group in groups %}
+            <li><a href="{% url group_detail group.slug %}">{{ group.title }}</a></li>
+        {% endfor %}
+        </ul>
+    {% endif %}
     {% endif %}
     {% endif %}
 </div>
@@ -390,8 +399,8 @@
 			path: "{{ STATIC_URL }}agon_ratings/img/"
 		});
 	});
-
-	(function() {
+	
+    (function() {
 		var po = document.createElement('script'); po.type = 'text/javascript'; po.async = true;
 		po.src = 'https://apis.google.com/js/plusone.js';
 		var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(po, s);

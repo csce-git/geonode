@@ -1,0 +1,6 @@
+{% load i18n %}
+{% blocktrans %}
+{{ from_user }} has followed you.
+
+You can see their profile at {{ user_url }}.
+{% endblocktrans %}

@@ -121,6 +121,8 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.core.context_processors.media",
     "django.core.context_processors.request",
     "geonode.maps.context_processors.resource_urls",
+    "django.core.context_processors.request",
+    "notification.context_processors.notification",
 )
 
 MIDDLEWARE_CLASSES = (
@@ -129,6 +131,7 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'cbv.middleware.DeferredRenderingMiddleware',
 )
 
 # This isn't required for running the geonode site, but it when running sites that inherit the geonode.settings module.
@@ -215,37 +218,6 @@ MAP_BASELAYERS = [{
 
 }]
 
-# NAVBAR expects a dict of dicts or a path to an ini file
-NAVBAR = \
-{'maps': {'id': '%sLink',
-               'item_class': '',
-               'link_class': '',
-               'text': 'Maps',
-               'url': 'geonode.maps.views.maps'},
- 'data': {'id': '%sLink',
-          'item_class': '',
-          'link_class': '',
-          'text': 'Data',
-          'url': "geonode.maps.views.browse_data"},
-#  'index': {'id': '%sLink',
-#            'item_class': '',
-#            'link_class': '',
-#            'text': 'Featured Map',
-#            'url': 'geonode.views.index'},
- 'master': {'id': '%sLink',
-            'item_class': '',
-            'link_class': '',
-            'text': 'This page has no tab for this navigation'},
- 'meta': {'active_class': 'here',
-          'default_id': '%sLink',
-          'default_item_class': '',
-          'default_link_class': '',
-          'end_class': 'last',
-          'id': '%sLink',
-          'item_class': '',
-          'link_class': '',
-          'visible': 'data\nmaps'}}
-
 INSTALLED_APPS = (
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -254,35 +226,61 @@ INSTALLED_APPS = (
     'django.contrib.admin',
     'django.contrib.sitemaps',
 
+    
     'staticfiles',
     'django_extensions',
     'registration',
-    'profiles',
+    'idios',
     'avatar',
+
     'agon_ratings',
     'dialogos',
-
+    'taggit',
+    'relationships',
+    'announcements',
+    'notification',
+    'actstream',
+    'user_messages',
+    'crispy_forms',
+    'haystack',
+    'south',
+    
     'geonode.core',
     'geonode.maps',
+    'geonode.people',
     'geonode.proxy',
+    'geonode.groups',
     'geonode'
 )
+
+# List of models that actstream can take action on.
+ACTSTREAM_ACTION_MODELS = [
+        "auth.User",
+        "groups.Group",
+]
 
 def get_user_url(u):
     from django.contrib.sites.models import Site
     s = Site.objects.get_current()
-    return "http://" + s.domain + "/profiles/" + u.username
+    return "http://" + s.domain + "/profiles/profile" + u.username
 
 
 ABSOLUTE_URL_OVERRIDES = {
     'auth.user': get_user_url
 }
 
-AUTH_PROFILE_MODULE = 'maps.Contact'
+AUTH_PROFILE_MODULE = 'people.Contact'
 REGISTRATION_OPEN = False
 
 SERVE_MEDIA = DEBUG;
 
+STATICFILES_FINDERS = [
+    'staticfiles.finders.FileSystemFinder',
+    'staticfiles.finders.AppDirectoriesFinder',
+    'staticfiles.finders.LegacyAppDirectoriesFinder'
+]
+
+#GEONODE_CLIENT_LOCATION = "http://localhost:8001/geonode-client/"
 GEONODE_CLIENT_LOCATION = "/media/static/"
 
 #Import uploaded shapefiles into a database such as PostGIS?
@@ -303,6 +301,13 @@ AGON_RATINGS_CATEGORY_CHOICES = {
     },
     "maps.Layer": {
         "layer": "How good is this layer?"
+    },
+}
+
+HAYSTACK_CONNECTIONS = {
+    'default': {
+        'ENGINE': 'haystack.backends.whoosh_backend.WhooshEngine',
+        'PATH': os.path.join(os.path.dirname(__file__), 'whoosh_index'),
     },
 }
 
