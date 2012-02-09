@@ -959,9 +959,14 @@ class Layer(models.Model, PermissionLevelMixin):
                 self.distribution_description = res.description
 
     def keyword_list(self):
+
         keywords_qs = self.keywords.all()
         if keywords_qs:
             return [kw.name for kw in keywords_qs]
+
+        if self.keywords is None or len(self.keywords) == 0:
+            return []
+
         else:
             return []
 
