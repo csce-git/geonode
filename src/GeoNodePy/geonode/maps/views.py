@@ -570,7 +570,7 @@ def ajax_map_permissions(request, mapid):
 
     spec = json.loads(request.raw_post_data)
     set_object_permissions(map, spec)
-
+    setResourceLicenseAgreement(map , spec)
     # _perms = {
     #     Layer.LEVEL_READ: Map.LEVEL_READ,
     #     Layer.LEVEL_WRITE: Map.LEVEL_WRITE,
@@ -632,11 +632,14 @@ def mapdetail(request,mapid):
     config = map.viewer_json()
     config = json.dumps(config)
     layers = MapLayer.objects.filter(map=map.id)
+    license_agreement = getRecourseLicenseAgreement (map)
+    
     return render_to_response("maps/mapinfo.html", RequestContext(request, {
         'config': config,
         'map': map,
         'layers': layers,
-        'permissions_json': json.dumps(_perms_info(map, MAP_LEV_NAMES))
+        'permissions_json': json.dumps(_perms_info(map, MAP_LEV_NAMES)),
+        "license_agreement" : license_agreement
     }))
 
 @csrf_exempt
