@@ -62,6 +62,10 @@ Ext.onReady(function() {
     mapsAndLayers.push(["map.{{ map.pk|escapejs }}", "{{ map.pk|escapejs }}", "map", "{{ map.get_absolute_url|escapejs }}", "{{ map.title|escapejs }}", "{{ map.last_modified|escapejs }}"]);
     {% endfor %}
 
+    {% for document in profile.user.document_set.all %}
+    mapsAndLayers.push(["document.{{ document.pk|escapejs }}", "{{ document.pk|escapejs }}", "document", "/documents/{{ document.pk|escapejs }}", "{{ document.title|escapejs }}", "{{ document.date|escapejs }}"]);
+    {% endfor %}
+
     var assets = new Ext.data.Store({
         reader: new Ext.data.ArrayReader({
             idIndex: 0,
