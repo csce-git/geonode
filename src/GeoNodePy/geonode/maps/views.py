@@ -2020,6 +2020,7 @@ def services(request):
     }))
 
 @login_required
+@csrf_exempt
 def register_service(request):
     if request.method == "GET":
         return render_to_response('maps/register_service.html',
@@ -2226,6 +2227,7 @@ def register_service(request):
         return HttpResponse('Invalid Request', status = 400)
 
 @login_required
+@csrf_exempt
 def register_layers(request):
     if request.method == 'GET':
         return HttpResponse('Not Implemented (Yet)', status=501)
@@ -2388,6 +2390,7 @@ def remove_service(request, service_id):
 
     
 @login_required
+@csrf_exempt
 def service_layers(request, service_id):
     """
     Return the layers for a service.
