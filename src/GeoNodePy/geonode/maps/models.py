@@ -963,10 +963,6 @@ class Layer(models.Model, PermissionLevelMixin):
         keywords_qs = self.keywords.all()
         if keywords_qs:
             return [kw.name for kw in keywords_qs]
-
-        if self.keywords is None or len(self.keywords) == 0:
-            return []
-
         else:
             return []
 
