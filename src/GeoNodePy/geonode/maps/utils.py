@@ -429,7 +429,8 @@ def save(layer, base_file, user, overwrite = True, title=None, abstract=None, pe
     # Verify it is correctly linked to GeoServer and GeoNetwork
     try:
         #FIXME: Implement a verify method that makes sure it was saved in both GeoNetwork and GeoServer
-        saved_layer.verify()
+        pass
+        #saved_layer.verify()
     except NotImplementedError, e:
         logger.exception('>>> FIXME: Please, if you can write python code, implement "verify()"'
                          'method in geonode.maps.models.Layer')
