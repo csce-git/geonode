@@ -44,6 +44,7 @@ Ext.onReady(function() {
        { header: gettext('Joined on'), dataIndex: 'joined', width: 30, xtype: 'datecolumn' }
     ]
 
+    {% comment %}
     {% if is_manager %}
         columns.unshift(cb);
         columns.push({
@@ -51,6 +52,7 @@ Ext.onReady(function() {
             width: 15
         });
     {% endif %}
+    {% endcomment %}
 
     var assetView = new Ext.grid.GridPanel({
         store: assets,
@@ -125,6 +127,7 @@ Ext.onReady(function() {
         layout: 'hbox',
         unstyled: true,
         items: [
+            {% comment %}
             { xtype: 'button',
               text: gettext("Remove selected"),
               iconCls: 'icon-delete',
@@ -183,6 +186,7 @@ Ext.onReady(function() {
                   win.show();
               }
             }
+            {% endcomment %}
         ]
     }
 
@@ -200,4 +204,5 @@ Ext.onReady(function() {
     {% endif %}
 });
 </script>
+
 {% endblock %}
