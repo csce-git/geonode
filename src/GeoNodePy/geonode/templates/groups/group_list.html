@@ -7,7 +7,11 @@
 {% if object_list %}
 <table border='0'>
 {% for group in object_list %}
-       <tr><td><img src="{{ group.logo.url }}" alt="{{ object.title }}" class="group-logo"></td><td><a href="{% url group_detail group.slug %}">{{ group.title }}</a></td></tr>
+       <tr><td>
+	{% if group.logo %}
+	<img src="{{ group.logo.url }}" alt="{{ object.title }}" class="group-logo">
+	{% endif %}
+	</td><td><a href="{% url group_detail group.slug %}">{{ group.title }}</a></td></tr>
 {% endfor %}
 </table>
 {% else %}
