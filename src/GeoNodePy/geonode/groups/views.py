@@ -16,8 +16,13 @@ from actstream import action
 
 
 def group_list(request):
+    groups = list(Group.objects.all())
+    if request.user.is_superuser == False:
+        for group in groups:
+            if group.access == "private" and group.user_is_member(request.user) == False:
+                groups.remove(group)
     ctx = {
-        "object_list": Group.objects.exclude(access="private"),
+        "object_list": groups, 
     }
     ctx = RequestContext(request, ctx)
     return render_to_response("groups/group_list.html", ctx)
