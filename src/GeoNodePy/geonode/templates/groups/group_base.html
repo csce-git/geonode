@@ -4,7 +4,7 @@
 {% include "geonode/app_header.html" %}
 {{ block.super }}
 {% endblock %}
-{% load i18n avatar_tags activity_tags %}
+{% load i18n avatar_tags %}
 
 {% block content %}
     <div class="threecol">
@@ -17,16 +17,10 @@
         <a href="{% url group_detail object.slug %}"><h2>{{ object.title }}</h2></a>
         {% if object.access == "public" and not is_member %}
           {% if user.is_authenticated %}
-          <form method="POST" action="{% url group_join object.slug %}"> 
+          <form method="POST" action="{% url group_join object.slug %}">
                   {% csrf_token %}
                   <input type="submit" value="Join" />
               </form>
-              <a href="{% activity_follow_url object %}" id="followbutton">
-                  <span>
-                      {% activity_follow_label object Unfollow Follow %}
-                  </span>
-              </a>
-
           {% else %}
               {# @@@ what is the correct behavior here? #}
               <p>Log in to join this group</p>
@@ -41,10 +35,6 @@
         {% if is_member %}
         <p>
         <h3>Actions</h3>
-        <form method="POST" action="">
-            {% csrf_token %}
-            <input type="submit" value="Leave" />
-        </form>
         <ul>
           {% if is_manager %}
             <li><a href="{% url group_update object.slug %}">Edit Group Details</a></li>
@@ -76,7 +66,7 @@
         <h3>Members <span>({{ members|length }})</span></h3>
         <div class="member-list">
           {% for member in members %}
-              <a href="{{ member.profile.get_absolute_url }}">{% avatar member.user 35 %}</a>
+              <a href="{{ member.profile.get_absolute_url }}">{% avatar member 35 %}</a>
           {% endfor %}
         </div>
         {% if is_manager %}
@@ -84,33 +74,4 @@
         {% endif %}
 
     </div>
-
-<script>
-        Ext.onReady(function () {
-            var followBtn = Ext.get("followbutton");
-
-            followBtn.on('click', function () {
-
-                Ext.Ajax.request({
-                    url: followBtn.getAttribute("href"),
-                    success: function (response, opts) {
-                        switch(response.status)
-                        {
-                            case 201:
-                                followBtn.child("span").update("Unfollow");
-                                followBtn.dom.href = followBtn.getAttribute("href").replace("follow", "unfollow");
-                                break;
-                            case 204:
-                                followBtn.child("span").update("Follow");
-                                followBtn.dom.href = followBtn.getAttribute("href").replace("unfollow", "follow");
-                                break;
-                            default:
-                        }
-                    },
-                    method: "POST",
-                });
-            }, this, {stopEvent: true});
-        });
-    </script>
 {% endblock %}
-
