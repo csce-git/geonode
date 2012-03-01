@@ -2267,6 +2267,7 @@ def register_layers(request):
                                                                     store, resource)
                             new_layer.owner = request.user
                             new_layer.save()
+			    new_layer.set_default_permissions()
                             if perm_spec:
                                 set_object_permissions(new_layer, perm_spec)
                             else:
