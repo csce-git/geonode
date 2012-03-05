@@ -35,6 +35,7 @@ def group_create(request):
         if form.is_valid():
             group = form.save(commit=False)
             group.save()
+            form.save_m2m()
             group.join(request.user, role="manager")
             if group.access != "private":
                 action.send(request.user, verb="created", target=group)
@@ -58,8 +59,11 @@ def group_update(request, slug):
         if form.is_valid():
             group = form.save(commit=False)
             group.save()
+
             if group.access != "private":
                 action.send(request.user, verb="updated", target=group)
+
+            form.save_m2m()
             return redirect("group_detail", group.slug)
     else:
         form = GroupForm(instance=group)
