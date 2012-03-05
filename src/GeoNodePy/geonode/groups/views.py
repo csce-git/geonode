@@ -22,7 +22,7 @@ def group_list(request):
             if group.access == "private" and group.user_is_member(request.user) == False:
                 groups.remove(group)
     ctx = {
-        "object_list": groups, 
+        "object_list": Group.groups_for_user(request.user),
     }
     ctx = RequestContext(request, ctx)
     return render_to_response("groups/group_list.html", ctx)
