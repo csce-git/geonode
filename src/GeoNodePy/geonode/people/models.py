@@ -40,18 +40,18 @@ PROFILE_TYPES = (
 
 class Contact(ProfileBase):
     type = models.CharField(_('User Type'), max_length=1, choices=PROFILE_TYPES, null=True, blank=True, default='U')
-    name = models.CharField(_('Individual Name'), max_length=255, blank=True, null=True)
-    organization = models.CharField(_('Organization Name'), max_length=255, blank=True, null=True)
+    name = models.CharField(_('Individual Name'), max_length=255 )
+    organization = models.CharField(_('Organisation Name'), max_length=255 )
     profile = models.TextField(_('Profile'), null=True, blank=True)
     position = models.CharField(_('Position Name'), max_length=255, blank=True, null=True)
-    voice = models.CharField(_('Voice'), max_length=255, blank=True, null=True)
+    voice = models.CharField(_('Contact number'), max_length=255)
     fax = models.CharField(_('Facsimile'),  max_length=255, blank=True, null=True)
     delivery = models.CharField(_('Delivery Point'), max_length=255, blank=True, null=True)
     city = models.CharField(_('City'), max_length=255, blank=True, null=True)
     area = models.CharField(_('Administrative Area'), max_length=255, blank=True, null=True)
     zipcode = models.CharField(_('Postal Code'), max_length=255, blank=True, null=True)
     country = models.CharField(choices=COUNTRIES, max_length=3, blank=True, null=True)
-    email = models.EmailField(blank=True, null=True)
+    email = models.EmailField()
 
     def clean(self):
         # the specification says that either name or organization should be provided
