@@ -853,7 +853,7 @@ def layer_remove(request, layername):
             }))
         if (request.method == 'POST'):
             layer.delete()
-            return HttpResponseRedirect(reverse("data"))
+            return HttpResponseRedirect(reverse("geonode.maps.views.search_page"))
         else:
             return HttpResponse("Not allowed",status=403)
     else:

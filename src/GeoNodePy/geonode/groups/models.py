@@ -33,9 +33,9 @@ class Group(models.Model):
     
     @classmethod
     def groups_for_user(cls, user):
-        if user.is_authenticated():
-            if user.is_superuser:
-                return cls.objects.all()
+        if user.is_superuser:
+            return cls.objects.all()
+        elif user.is_authenticated():
             return cls.objects.exclude(access="private") | cls.objects.filter(groupmember__user=user)
         else:
             return cls.objects.exclude(access="private")
@@ -58,7 +58,10 @@ class Group(models.Model):
     
     def can_view(self, user):
         if self.access == "private":
-            return user.is_authenticated() and self.user_is_member(user)
+            if user.is_superuser:
+                return True
+            else:
+                return user.is_authenticated() and self.user_is_member(user)
         else:
             return True
     
