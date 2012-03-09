@@ -70,8 +70,14 @@
     </a></p>
     {% endif %}
   {% else %}
+     {% if not userResourceLicenseSuperseded %}
     <p>{% trans "You do not have permission to view or download this layer" %}</p>
     <p><a href="layer/payment/{{layer.id}}"> Buy/License </a></p>
-    
+     {% endif %}
+     {% if userResourceLicenseSuperseded %}
+    <p>{% trans "License is been changed for this resource. " %}</p>
+    <p><a href="layer/payment/{{layer.id}}"> Please accept again</a></p>
+     {% endif %}
+     
   {% endif %}
 {% endif %}
