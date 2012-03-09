@@ -40,7 +40,7 @@ from django.db.models import Q
 import logging
 import datetime
 import sys, traceback
-from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement
+from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement, checkIfUserResourceLicenseSuperseded
 import taggit
 
 logger = logging.getLogger("geonode.maps.views")
@@ -192,7 +192,7 @@ def mapJSON(request, mapid):
         if not request.user.has_perm('maps.view_map', obj=map):
             return HttpResponse(loader.render_to_string('401.html',
                 RequestContext(request, {})), status=401)
-    	return HttpResponse(json.dumps(map.viewer_json()))
+        return HttpResponse(json.dumps(map.viewer_json()))
     elif request.method == 'PUT':
         if not request.user.is_authenticated():
             return HttpResponse(
@@ -853,7 +853,7 @@ def layer_remove(request, layername):
             }))
         if (request.method == 'POST'):
             layer.delete()
-            return HttpResponseRedirect(reverse("data"))
+            return HttpResponseRedirect(reverse("geonode.maps.views.search_page"))
         else:
             return HttpResponse("Not allowed",status=403)
     else:
@@ -920,7 +920,7 @@ def layer_detail(request, layername):
     DEFAULT_BASE_LAYERS = default_map_config()[1]
 
     license_agreement = getRecourseLicenseAgreement (layer)
-
+    license_schedule = getLicenseSchedule (layer, request.user, license_agreement)
     return render_to_response('maps/layer.html', RequestContext(request, {
         "layer": layer,
         "metadata": metadata,
@@ -928,6 +928,7 @@ def layer_detail(request, layername):
         "permissions_json": _perms_info_json(layer, LAYER_LEV_NAMES),
         "GEOSERVER_BASE_URL": settings.GEOSERVER_BASE_URL,
         "license_agreement" : license_agreement,
+    "license_schedule" : license_schedule,
         "groups": groups,
     }))
 
@@ -1078,7 +1079,7 @@ def _view_perms_context(obj, level_names):
     
     return ctx
 
-from anzsm.payment.utils import getPaymentOptions, getRecourseLicenseAgreement
+from anzsm.payment.utils import getPaymentOptions, getRecourseLicenseAgreement, getLicenseSchedule
 def _perms_info(obj, level_names):
     info = obj.get_all_level_info()
     # these are always specified even if none
@@ -1414,6 +1415,8 @@ def search_result_detail(request):
     try:
         layer = Layer.objects.get(uuid=uuid)
         layer_is_remote = False
+        content_type_id = ContentType.objects.get_for_model(Layer).id
+        userResourceLicenseSuperseded = checkIfUserResourceLicenseSuperseded (request.user, layer.id, content_type_id)
     except:
         layer = None
         layer_is_remote = True
@@ -1422,7 +1425,8 @@ def search_result_detail(request):
         'rec': rec,
         'extra_links': extra_links,
         'layer': layer,
-        'layer_is_remote': layer_is_remote
+        'layer_is_remote': layer_is_remote,
+        'userResourceLicenseSuperseded': userResourceLicenseSuperseded
     }))
 
 def _extract_links(rec, xml):
@@ -2267,6 +2271,7 @@ def register_layers(request):
                                                                     store, resource)
                             new_layer.owner = request.user
                             new_layer.save()
+                            new_layer.set_default_permissions()
                             if perm_spec:
                                 set_object_permissions(new_layer, perm_spec)
                             else:
