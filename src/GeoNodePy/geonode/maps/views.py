@@ -40,8 +40,10 @@ from django.db.models import Q
 import logging
 import datetime
 import sys, traceback
-from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement, checkIfUserResourceLicenseSuperseded
+from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement
 import taggit
+from django.contrib.contenttypes.models import ContentType
+
 
 logger = logging.getLogger("geonode.maps.views")
 
@@ -192,7 +194,7 @@ def mapJSON(request, mapid):
         if not request.user.has_perm('maps.view_map', obj=map):
             return HttpResponse(loader.render_to_string('401.html',
                 RequestContext(request, {})), status=401)
-    	return HttpResponse(json.dumps(map.viewer_json()))
+        return HttpResponse(json.dumps(map.viewer_json()))
     elif request.method == 'PUT':
         if not request.user.is_authenticated():
             return HttpResponse(
@@ -1079,7 +1081,7 @@ def _view_perms_context(obj, level_names):
     
     return ctx
 
-from anzsm.payment.utils import getPaymentOptions, getRecourseLicenseAgreement, getLicenseSchedule
+from anzsm.payment.utils import getPaymentOptions, getRecourseLicenseAgreement, getLicenseSchedule, checkIfUserResourceLicenseSuperseded
 def _perms_info(obj, level_names):
     info = obj.get_all_level_info()
     # these are always specified even if none
@@ -1414,20 +1416,19 @@ def search_result_detail(request):
 
     try:
         layer = Layer.objects.get(uuid=uuid)
-        layer_is_remote = False
-  	content_type_id = ContentType.objects.get_for_model(Layer).id
-      	userResourceLicenseSuperseded = False
-	#userResourceLicenseSuperseded = checkIfUserResourceLicenseSuperseded (request.user, layer.id, content_type_id)
+    	layer_is_remote = False
+     	content_type_id = ContentType.objects.get_for_model(Layer).id
+    	userResourceLicenseSuperseded = checkIfUserResourceLicenseSuperseded (request.user, layer.id, content_type_id)
     except:
         layer = None
         layer_is_remote = True
-
+	userResourceLicenseSuperseded = False
     return render_to_response('maps/search_result_snippet.html', RequestContext(request, {
         'rec': rec,
         'extra_links': extra_links,
         'layer': layer,
-        'layer_is_remote': layer_is_remote
-        #'userResourceLicenseSuperseded': userResourceLicenseSuperseded
+        'layer_is_remote': layer_is_remote,
+        'userResourceLicenseSuperseded': userResourceLicenseSuperseded
     }))
 
 def _extract_links(rec, xml):
@@ -2272,7 +2273,8 @@ def register_layers(request):
                                                                     store, resource)
                             new_layer.owner = request.user
                             new_layer.save()
-			    new_layer.set_default_permissions()
+
+                            new_layer.set_default_permissions()
                             if perm_spec:
                                 set_object_permissions(new_layer, perm_spec)
                             else:
