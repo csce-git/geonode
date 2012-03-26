@@ -2291,6 +2291,9 @@ def register_layers(request):
                             new_layer.set_default_permissions()
                             if perm_spec:
                                 set_object_permissions(new_layer, perm_spec)
+				setResourceLicenseAgreement (new_layer, perm_spec)
+				setResourceViewMode (new_layer, perm_spec)
+				setPaymentOptions (new_layer, perm_spec)
                             else:
                                 pass # Will be assigned default perms
                             count += 1
