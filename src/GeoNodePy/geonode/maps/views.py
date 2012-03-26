@@ -40,7 +40,9 @@ from django.db.models import Q
 import logging
 import datetime
 import sys, traceback
-from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement
+
+from anzsm.payment.utils import setPaymentOptions, setResourceLicenseAgreement,  setResourceViewMode, isResourseAccesable
+
 import taggit
 from django.contrib.contenttypes.models import ContentType
 
@@ -544,6 +546,7 @@ def ajax_layer_permissions(request, layername):
     permission_spec = json.loads(request.raw_post_data)
     setPaymentOptions (layer, permission_spec)
     setResourceLicenseAgreement(layer , permission_spec)
+    setResourceViewMode ( layer , permission_spec)    
     set_object_permissions(layer, permission_spec)
 
     return HttpResponse(
@@ -573,6 +576,7 @@ def ajax_map_permissions(request, mapid):
     spec = json.loads(request.raw_post_data)
     set_object_permissions(map, spec)
     setResourceLicenseAgreement(map , spec)
+    setResourceViewMode (map, spec)
     # _perms = {
     #     Layer.LEVEL_READ: Map.LEVEL_READ,
     #     Layer.LEVEL_WRITE: Map.LEVEL_WRITE,
@@ -1081,7 +1085,7 @@ def _view_perms_context(obj, level_names):
     
     return ctx
 
-from anzsm.payment.utils import getPaymentOptions, getRecourseLicenseAgreement, getLicenseSchedule, checkIfUserResourceLicenseSuperseded
+from anzsm.payment.utils import getPaymentOptions, getRecourseLicenseAgreement, getLicenseSchedule, checkIfUserResourceLicenseSuperseded, getResourceViewMode
 def _perms_info(obj, level_names):
     info = obj.get_all_level_info()
     # these are always specified even if none
@@ -1096,6 +1100,12 @@ def _perms_info(obj, level_names):
         info['license_id'] = getRecourseLicenseAgreement(obj).payment_license.id
     else:
         info['license_id'] = '-1'     
+    resourceViewMode  = getResourceViewMode (obj)
+    if ( resourceViewMode is not None):
+        info['viewMode'] = resourceViewMode.mode
+    else:    
+        info['viewMode'] = '-1'
+        
     if hasattr(obj, 'owner') and obj.owner is not None:
         info['owner'] = obj.owner.username
     return info
@@ -1416,19 +1426,23 @@ def search_result_detail(request):
 
     try:
         layer = Layer.objects.get(uuid=uuid)
-    	layer_is_remote = False
-     	content_type_id = ContentType.objects.get_for_model(Layer).id
-    	userResourceLicenseSuperseded = checkIfUserResourceLicenseSuperseded (request.user, layer.id, content_type_id)
-    except:
+	layer_is_remote = False
+	content_type = ContentType.objects.get_for_model(Layer)
+        userResourceLicenseSuperseded = checkIfUserResourceLicenseSuperseded (request.user, layer.id, content_type.id)
+        resourceAccesable = isResourseAccesable  (content_type,layer.id )
+    except Exception as e:
         layer = None
         layer_is_remote = True
-	userResourceLicenseSuperseded = False
+        userResourceLicenseSuperseded = False
+        resourceAccesable = False
+	logger.error ( 'erorr in getting search details: ' + str(e))
     return render_to_response('maps/search_result_snippet.html', RequestContext(request, {
         'rec': rec,
         'extra_links': extra_links,
         'layer': layer,
         'layer_is_remote': layer_is_remote,
-        'userResourceLicenseSuperseded': userResourceLicenseSuperseded
+        'userResourceLicenseSuperseded': userResourceLicenseSuperseded,
+        'isResourseAccesable': resourceAccesable,
     }))
 
 def _extract_links(rec, xml):

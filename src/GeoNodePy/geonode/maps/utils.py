@@ -411,7 +411,12 @@ def save(layer, base_file, user, overwrite = True, title=None, abstract=None, pe
     if permissions is not None:
         from anzsm.payment.utils import setResourceLicenseAgreement
         setResourceLicenseAgreement ( saved_layer , permissions)
-   
+
+    logger.info('>>> set the layer view mode')
+    if permissions is not None:
+        from anzsm.payment.utils import setResourceViewMode
+        setResourceViewMode ( saved_layer , permissions)        
+       
     # Step 13. Verify the layer was saved correctly and clean up if needed
     logger.info('>>> Step 13. Verifying the layer [%s] was created correctly' % name)
 
